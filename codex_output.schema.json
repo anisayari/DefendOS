@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "severity",
+    "urgent",
+    "send_email",
+    "summary",
+    "findings",
+    "recommended_actions",
+    "needs_user_reply",
+    "reply_subject",
+    "reply_body"
+  ],
+  "properties": {
+    "severity": {
+      "type": "string",
+      "enum": ["info", "low", "medium", "high", "critical"]
+    },
+    "urgent": {
+      "type": "boolean"
+    },
+    "send_email": {
+      "type": "boolean"
+    },
+    "summary": {
+      "type": "string",
+      "minLength": 1
+    },
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "recommended_actions": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "needs_user_reply": {
+      "type": "boolean"
+    },
+    "reply_subject": {
+      "type": "string",
+      "minLength": 1
+    },
+    "reply_body": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

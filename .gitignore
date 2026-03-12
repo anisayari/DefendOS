@@ -1,0 +1,24 @@
+# Runtime configuration and secrets
+defendos.env
+.env
+.env.*
+!.env.example
+
+# Runtime state and local logs
+state/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Tooling noise
+.DS_Store
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+dist/
+build/
+*.egg-info/
