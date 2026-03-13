@@ -8,4 +8,5 @@ Type=oneshot
 WorkingDirectory=__DEFENDOS_ROOT__
 Environment=HOME=/root
 Environment=PYTHONUNBUFFERED=1
+TimeoutStartSec=infinity
 ExecStart=/usr/bin/python3 __DEFENDOS_ROOT__/defendos.py poll-inbox

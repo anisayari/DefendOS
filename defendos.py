@@ -25,6 +25,7 @@ from email.message import EmailMessage
 from email.parser import BytesParser
 from email.policy import default
 from email.utils import getaddresses, parseaddr
+from getpass import getpass
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -43,6 +44,242 @@ SEVERITY_ORDER = {
 }
 
 DEFAULT_EXTERNAL_ENV_FILES: list[str] = []
+
+SETUP_SECTIONS = [
+    {
+        "id": "identity",
+        "title": "Identity",
+        "description": "Mailbox, alerts and operator allowlist.",
+        "fields": [
+            {"key": "DEFENDOS_ALERT_EMAIL_TO", "label": "Alert email", "required": True, "placeholder": "security@example.com"},
+            {"key": "DEFENDOS_INBOX_ADDRESS", "label": "Inbox address", "required": True, "placeholder": "defendos@example.com"},
+            {
+                "key": "DEFENDOS_ALLOWED_SENDERS",
+                "label": "Allowed senders",
+                "required": True,
+                "placeholder": "me@example.com,@mycompany.com",
+                "helper": "Comma-separated addresses or domains.",
+            },
+            {
+                "key": "DEFENDOS_EXPECTED_PUBLIC_PORTS",
+                "label": "Expected public ports",
+                "required": True,
+                "placeholder": "22,80,443",
+            },
+            {
+                "key": "DEFENDOS_TRUSTED_LOGIN_IPS",
+                "label": "Trusted SSH IPs",
+                "placeholder": "203.0.113.10,198.51.100.0/24",
+            },
+            {
+                "key": "DEFENDOS_EXTERNAL_ENV_FILES",
+                "label": "Extra env files",
+                "placeholder": "/opt/app/.env,/srv/worker/.env",
+                "helper": "Optional. Lets DefendOS reuse secrets already present elsewhere.",
+            },
+        ],
+    },
+    {
+        "id": "codex",
+        "title": "Codex",
+        "description": "CLI, model and API access for investigations.",
+        "fields": [
+            {"key": "DEFENDOS_CODEX_ENABLED", "label": "Enable Codex", "input": "select", "choices": ["true", "false"], "required": True},
+            {
+                "key": "CODEX_BIN",
+                "label": "Codex binary",
+                "required": True,
+                "placeholder": "codex",
+                "show_if": {"field": "DEFENDOS_CODEX_ENABLED", "value": "true"},
+            },
+            {
+                "key": "OPENAI_API_KEY",
+                "label": "OpenAI API key",
+                "secret": True,
+                "required": True,
+                "show_if": {"field": "DEFENDOS_CODEX_ENABLED", "value": "true"},
+                "helper": "Leave blank to keep the current secret or rely on external env files.",
+            },
+            {
+                "key": "DEFENDOS_CODEX_MODEL",
+                "label": "Codex model",
+                "placeholder": "gpt-5.4",
+                "show_if": {"field": "DEFENDOS_CODEX_ENABLED", "value": "true"},
+            },
+            {
+                "key": "DEFENDOS_CODEX_TIMEOUT_SECONDS",
+                "label": "Codex full timeout",
+                "required": True,
+                "placeholder": "900",
+                "helper": "Set 0 to disable the timeout.",
+                "show_if": {"field": "DEFENDOS_CODEX_ENABLED", "value": "true"},
+            },
+            {
+                "key": "DEFENDOS_CODEX_SCHEDULED_TIMEOUT_SECONDS",
+                "label": "Codex scheduled timeout",
+                "required": True,
+                "placeholder": "180",
+                "helper": "Set 0 to let scheduled investigations run without a timeout.",
+                "show_if": {"field": "DEFENDOS_CODEX_ENABLED", "value": "true"},
+            },
+        ],
+    },
+    {
+        "id": "email",
+        "title": "Outbound email",
+        "description": "Choose how urgent alerts are sent.",
+        "fields": [
+            {
+                "key": "DEFENDOS_EMAIL_PROVIDER",
+                "label": "Email provider",
+                "input": "select",
+                "choices": ["resend", "smtp"],
+                "required": True,
+            },
+            {
+                "key": "RESEND_API_KEY",
+                "label": "Resend API key",
+                "secret": True,
+                "required": True,
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "resend"},
+            },
+            {
+                "key": "DEFENDOS_RESEND_FROM_EMAIL",
+                "label": "Resend from",
+                "required": True,
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "resend"},
+                "placeholder": "DefendOS <defendos@example.com>",
+            },
+            {
+                "key": "DEFENDOS_RESEND_REPLY_TO_EMAIL",
+                "label": "Resend reply-to",
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "resend"},
+                "placeholder": "defendos@example.com",
+            },
+            {
+                "key": "DEFENDOS_RESEND_TEST_FROM_EMAIL",
+                "label": "Resend test sender",
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "resend"},
+                "placeholder": "DefendOS Test <security@example.com>",
+            },
+            {
+                "key": "DEFENDOS_SMTP_HOST",
+                "label": "SMTP host",
+                "required": True,
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "smtp"},
+                "placeholder": "smtp.example.com",
+            },
+            {
+                "key": "DEFENDOS_SMTP_PORT",
+                "label": "SMTP port",
+                "required": True,
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "smtp"},
+                "placeholder": "465",
+            },
+            {
+                "key": "DEFENDOS_SMTP_USERNAME",
+                "label": "SMTP username",
+                "required": True,
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "smtp"},
+            },
+            {
+                "key": "DEFENDOS_SMTP_PASSWORD",
+                "label": "SMTP password",
+                "secret": True,
+                "required": True,
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "smtp"},
+            },
+            {
+                "key": "DEFENDOS_SMTP_FROM",
+                "label": "SMTP from",
+                "show_if": {"field": "DEFENDOS_EMAIL_PROVIDER", "value": "smtp"},
+                "placeholder": "DefendOS <defendos@example.com>",
+            },
+        ],
+    },
+    {
+        "id": "inbox",
+        "title": "Inbound commands",
+        "description": "Choose how DefendOS receives operator emails.",
+        "fields": [
+            {
+                "key": "DEFENDOS_INBOX_PROVIDER",
+                "label": "Inbox provider",
+                "input": "select",
+                "choices": ["imap", "resend"],
+                "required": True,
+            },
+            {
+                "key": "DEFENDOS_IMAP_HOST",
+                "label": "IMAP host",
+                "required": True,
+                "show_if": {"field": "DEFENDOS_INBOX_PROVIDER", "value": "imap"},
+                "placeholder": "imap.example.com",
+            },
+            {
+                "key": "DEFENDOS_IMAP_PORT",
+                "label": "IMAP port",
+                "required": True,
+                "show_if": {"field": "DEFENDOS_INBOX_PROVIDER", "value": "imap"},
+                "placeholder": "993",
+            },
+            {
+                "key": "DEFENDOS_IMAP_USERNAME",
+                "label": "IMAP username",
+                "required": True,
+                "show_if": {"field": "DEFENDOS_INBOX_PROVIDER", "value": "imap"},
+            },
+            {
+                "key": "DEFENDOS_IMAP_PASSWORD",
+                "label": "IMAP password",
+                "secret": True,
+                "required": True,
+                "show_if": {"field": "DEFENDOS_INBOX_PROVIDER", "value": "imap"},
+            },
+            {
+                "key": "DEFENDOS_IMAP_FOLDER",
+                "label": "IMAP folder",
+                "show_if": {"field": "DEFENDOS_INBOX_PROVIDER", "value": "imap"},
+                "placeholder": "INBOX",
+            },
+            {
+                "key": "DEFENDOS_EMAIL_TRIGGER_PREFIX",
+                "label": "Email trigger prefix",
+                "placeholder": "defendos:",
+                "helper": "Only emails starting with this prefix trigger an investigation.",
+            },
+        ],
+    },
+    {
+        "id": "runtime",
+        "title": "Runtime",
+        "description": "Dashboard bind and service behavior.",
+        "fields": [
+            {"key": "DEFENDOS_DASHBOARD_HOST", "label": "Dashboard host", "required": True, "placeholder": "127.0.0.1"},
+            {"key": "DEFENDOS_DASHBOARD_PORT", "label": "Dashboard port", "required": True, "placeholder": "8787"},
+            {"key": "DEFENDOS_ALERT_MIN_SEVERITY", "label": "Alert threshold", "input": "select", "choices": ["info", "low", "medium", "high", "critical"]},
+            {"key": "DEFENDOS_ALERT_SUPPRESS_MINUTES", "label": "Alert suppress window", "placeholder": "120"},
+        ],
+    },
+]
+
+SETUP_SECRET_FIELDS = {
+    "OPENAI_API_KEY",
+    "RESEND_API_KEY",
+    "DEFENDOS_SMTP_PASSWORD",
+    "DEFENDOS_IMAP_PASSWORD",
+}
+
+SETUP_BOOLEAN_FIELDS = {"DEFENDOS_CODEX_ENABLED"}
+
+SETUP_ORDER = [field["key"] for section in SETUP_SECTIONS for field in section["fields"]]
+SETUP_FIELD_MAP = {field["key"]: field for section in SETUP_SECTIONS for field in section["fields"]}
+RELOADABLE_ENV_KEYS = set(SETUP_ORDER) | {
+    "ADMIN_ALLOWED_EMAIL",
+    "OPENAI_EDITOR_CODEX_MODEL",
+    "RESEND_FROM_EMAIL",
+    "RESEND_REPLY_TO_EMAIL",
+}
 
 DEFAULT_DASHBOARD_HTML = """<!doctype html>
 <html lang="fr">
@@ -589,8 +826,340 @@ def load_env_file(path: Path, *, override: bool = False) -> None:
         key, value = line.split("=", 1)
         key = key.strip()
         value = value.strip().strip('"').strip("'")
-        if override or key not in os.environ:
+        if override or key not in os.environ or os.environ.get(key, "") == "":
             os.environ[key] = value
+
+
+def read_env_settings(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    if not path.exists():
+        return values
+
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        values[key.strip()] = value.strip().strip('"').strip("'")
+    return values
+
+
+def quote_env_value(value: str) -> str:
+    if value == "":
+        return ""
+    if re.fullmatch(r"[A-Za-z0-9_./:@,+<>\-]+", value):
+        return value
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def normalize_setup_value(key: str, value: Any) -> str:
+    text = str(value or "").strip()
+    if key in SETUP_BOOLEAN_FIELDS:
+        return "true" if parse_bool(text, False) else "false"
+    if key in {"DEFENDOS_EMAIL_PROVIDER", "DEFENDOS_INBOX_PROVIDER", "DEFENDOS_ALERT_MIN_SEVERITY"}:
+        return text.lower()
+    return text
+
+
+def reset_reloadable_env() -> None:
+    for key in RELOADABLE_ENV_KEYS:
+        os.environ.pop(key, None)
+
+
+def render_env_file(values: dict[str, str]) -> str:
+    lines = [
+        "# Generated by DefendOS setup wizard.",
+        "# Secrets in this file stay local and are ignored by git.",
+        "",
+    ]
+
+    for section in SETUP_SECTIONS:
+        lines.append(f"# {section['title']}")
+        if section.get("description"):
+            lines.append(f"# {section['description']}")
+        for field in section["fields"]:
+            key = field["key"]
+            value = values.get(key, "")
+            lines.append(f"{key}={quote_env_value(value)}")
+        lines.append("")
+
+    extra_keys = sorted(key for key in values if key not in SETUP_ORDER)
+    if extra_keys:
+        lines.append("# Additional local keys")
+        for key in extra_keys:
+            lines.append(f"{key}={quote_env_value(values[key])}")
+        lines.append("")
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def field_is_visible(field: dict[str, Any], values: dict[str, str]) -> bool:
+    rule = field.get("show_if")
+    if not rule:
+        return True
+    return values.get(str(rule["field"]), "") == str(rule["value"])
+
+
+def build_setup_defaults(config: Config) -> dict[str, str]:
+    return {
+        "DEFENDOS_ALERT_EMAIL_TO": config.alert_email_to or "",
+        "DEFENDOS_INBOX_ADDRESS": config.inbox_address or "",
+        "DEFENDOS_ALLOWED_SENDERS": ",".join(config.allowed_senders),
+        "DEFENDOS_EXPECTED_PUBLIC_PORTS": ",".join(config.expected_public_ports),
+        "DEFENDOS_TRUSTED_LOGIN_IPS": ",".join(config.trusted_login_ips),
+        "DEFENDOS_EXTERNAL_ENV_FILES": ",".join(str(path) for path in config.external_env_files),
+        "DEFENDOS_CODEX_ENABLED": "true" if config.codex_enabled else "false",
+        "CODEX_BIN": config.codex_bin or "codex",
+        "DEFENDOS_CODEX_MODEL": config.codex_model or "",
+        "DEFENDOS_CODEX_TIMEOUT_SECONDS": str(config.codex_timeout_seconds),
+        "DEFENDOS_CODEX_SCHEDULED_TIMEOUT_SECONDS": str(config.codex_scheduled_timeout_seconds),
+        "DEFENDOS_EMAIL_PROVIDER": config.email_provider,
+        "DEFENDOS_RESEND_FROM_EMAIL": config.resend_from_email or "",
+        "DEFENDOS_RESEND_REPLY_TO_EMAIL": config.resend_reply_to_email or "",
+        "DEFENDOS_RESEND_TEST_FROM_EMAIL": config.resend_test_from_email or "",
+        "DEFENDOS_SMTP_HOST": config.smtp_host or "",
+        "DEFENDOS_SMTP_PORT": str(config.smtp_port),
+        "DEFENDOS_SMTP_USERNAME": config.smtp_username or "",
+        "DEFENDOS_SMTP_FROM": config.smtp_from or "",
+        "DEFENDOS_INBOX_PROVIDER": config.inbox_provider,
+        "DEFENDOS_IMAP_HOST": config.imap_host or "",
+        "DEFENDOS_IMAP_PORT": str(config.imap_port),
+        "DEFENDOS_IMAP_USERNAME": config.imap_username or "",
+        "DEFENDOS_IMAP_FOLDER": config.imap_folder or "INBOX",
+        "DEFENDOS_EMAIL_TRIGGER_PREFIX": config.email_trigger_prefix or "defendos:",
+        "DEFENDOS_DASHBOARD_HOST": config.dashboard_host,
+        "DEFENDOS_DASHBOARD_PORT": str(config.dashboard_port),
+        "DEFENDOS_ALERT_MIN_SEVERITY": config.alert_min_severity,
+        "DEFENDOS_ALERT_SUPPRESS_MINUTES": str(config.alert_suppress_minutes),
+    }
+
+
+def build_setup_payload(config: Config) -> dict[str, Any]:
+    file_values = read_env_settings(config.env_path)
+    default_values = build_setup_defaults(config)
+    resolved_values: dict[str, str] = {}
+    secret_flags: dict[str, bool] = {}
+
+    for key in SETUP_ORDER:
+        current_value = file_values.get(key)
+        if current_value in {None, ""}:
+            current_value = os.environ.get(key)
+        if current_value in {None, ""}:
+            current_value = default_values.get(key, "")
+        if key in SETUP_SECRET_FIELDS:
+            secret_flags[key] = bool(current_value)
+            resolved_values[key] = ""
+        else:
+            resolved_values[key] = current_value or ""
+
+    visibility_values = {**default_values, **resolved_values}
+
+    missing_fields: list[dict[str, str]] = []
+    for section in SETUP_SECTIONS:
+        for field in section["fields"]:
+            key = field["key"]
+            if not field_is_visible(field, visibility_values):
+                continue
+            if not field.get("required"):
+                continue
+            if key in SETUP_SECRET_FIELDS:
+                current_value = secret_flags.get(key, False) or bool(os.environ.get(key, ""))
+            else:
+                current_value = bool(resolved_values.get(key, "").strip())
+            if not current_value:
+                missing_fields.append({"key": key, "label": str(field["label"])})
+
+    sections_payload: list[dict[str, Any]] = []
+
+    for section in SETUP_SECTIONS:
+        fields_payload: list[dict[str, Any]] = []
+        for field in section["fields"]:
+            key = field["key"]
+            visible = field_is_visible(field, visibility_values)
+            fields_payload.append(
+                {
+                    "key": key,
+                    "label": field["label"],
+                    "required": bool(field.get("required")),
+                    "input": field.get("input", "text"),
+                    "choices": field.get("choices", []),
+                    "helper": field.get("helper", ""),
+                    "placeholder": field.get("placeholder", ""),
+                    "secret": key in SETUP_SECRET_FIELDS,
+                    "present": secret_flags.get(key, False),
+                    "show_if": field.get("show_if"),
+                    "visible": visible,
+                    "value": "" if key in SETUP_SECRET_FIELDS else visibility_values.get(key, ""),
+                }
+            )
+        sections_payload.append(
+            {
+                "id": section["id"],
+                "title": section["title"],
+                "description": section["description"],
+                "fields": fields_payload,
+            }
+        )
+
+    return {
+        "env_path": str(config.env_path),
+        "configured": not missing_fields,
+        "missing_fields": missing_fields,
+        "missing_count": len(missing_fields),
+        "sections": sections_payload,
+    }
+
+
+def save_setup_values(config: Config, updates: dict[str, Any]) -> Config:
+    current_values = read_env_settings(config.env_path)
+    merged = dict(current_values)
+
+    for key in SETUP_ORDER:
+        if key not in updates:
+            continue
+        raw_value = updates.get(key)
+        if raw_value is None:
+            continue
+        text = str(raw_value)
+        if key in SETUP_SECRET_FIELDS and text == "":
+            continue
+        if text == "__CLEAR__":
+            merged[key] = ""
+            continue
+        merged[key] = normalize_setup_value(key, text)
+
+    write_text(config.env_path, render_env_file(merged))
+    reset_reloadable_env()
+    return build_config()
+
+
+def print_setup_status(payload: dict[str, Any]) -> None:
+    state = "ready" if payload.get("configured") else "incomplete"
+    print(f"DefendOS setup: {state}")
+    print(f"Config file: {payload.get('env_path')}")
+    missing_fields = payload.get("missing_fields") or []
+    if not missing_fields:
+        print("Missing fields: none")
+        return
+    print(f"Missing fields ({len(missing_fields)}):")
+    for item in missing_fields:
+        print(f"- {item.get('label', item.get('key', 'unknown'))}")
+
+
+def prompt_wizard_field(field: dict[str, Any], current_value: str, *, secret_present: bool) -> str | None:
+    label = str(field["label"])
+    if field.get("input") == "select":
+        prompt = f"{label} ({'/'.join(field.get('choices', []))})"
+    else:
+        prompt = label
+    if field["key"] in SETUP_SECRET_FIELDS:
+        prompt += " [configured]" if secret_present else " [empty]"
+    elif current_value:
+        prompt += f" [{current_value}]"
+    prompt += ": "
+
+    raw = getpass(prompt) if field["key"] in SETUP_SECRET_FIELDS else input(prompt)
+    if raw == "":
+        return None
+    if raw.strip() == "-":
+        return "__CLEAR__"
+    return raw.strip()
+
+
+def setup_command(config: Config, args: argparse.Namespace) -> int:
+    payload = build_setup_payload(config)
+    if args.status:
+        print_setup_status(payload)
+        return 0 if payload.get("configured") else 2
+
+    if not sys.stdin.isatty():
+        raise RuntimeError("Interactive setup requires a terminal. Use the dashboard or `setup --status`.")
+
+    working_values: dict[str, str] = {}
+    secret_flags: dict[str, bool] = {}
+    initial_missing_keys = {item["key"] for item in payload.get("missing_fields", []) if item.get("key")}
+
+    for section in payload["sections"]:
+        for field in section["fields"]:
+            key = str(field["key"])
+            secret_flags[key] = bool(field.get("present"))
+            if not field.get("secret"):
+                working_values[key] = str(field.get("value") or "")
+
+    print("DefendOS guided setup")
+    print(f"Config file: {config.env_path}")
+    if initial_missing_keys:
+        print(f"Missing fields: {len(initial_missing_keys)}")
+    print("Press Enter to keep the current value. Type - to clear a field.")
+
+    updates: dict[str, str] = {}
+    prompted = 0
+
+    for section in SETUP_SECTIONS:
+        section_updates = 0
+        print()
+        print(f"[{section['title']}]")
+        if section.get("description"):
+            print(section["description"])
+
+        for field in section["fields"]:
+            key = str(field["key"])
+            if not field_is_visible(field, working_values):
+                continue
+            if args.only_missing and key not in initial_missing_keys:
+                continue
+
+            helper = str(field.get("helper") or "").strip()
+            if helper:
+                print(f"- {helper}")
+
+            answer = prompt_wizard_field(
+                field,
+                working_values.get(key, ""),
+                secret_present=secret_flags.get(key, False),
+            )
+            prompted += 1
+            if answer is None:
+                continue
+
+            updates[key] = answer
+            section_updates += 1
+
+            if key in SETUP_SECRET_FIELDS:
+                secret_flags[key] = answer != "__CLEAR__"
+                continue
+
+            working_values[key] = "" if answer == "__CLEAR__" else normalize_setup_value(key, answer)
+
+        if section_updates == 0 and args.only_missing:
+            print("No missing field in this section.")
+
+    if prompted == 0:
+        print("No field needs input.")
+        return 0
+
+    if not updates:
+        print("No change written.")
+        return 0
+
+    refreshed_config = save_setup_values(config, updates)
+    append_event(
+        refreshed_config,
+        "setup_saved",
+        {
+            "source": "cli",
+            "updated_keys": sorted(updates.keys()),
+            "restart_required": any(key in updates for key in {"DEFENDOS_DASHBOARD_HOST", "DEFENDOS_DASHBOARD_PORT"}),
+        },
+    )
+    refreshed_payload = build_setup_payload(refreshed_config)
+    print()
+    print("Setup saved.")
+    print_setup_status(refreshed_payload)
+    if any(key in updates for key in {"DEFENDOS_DASHBOARD_HOST", "DEFENDOS_DASHBOARD_PORT"}):
+        print("Dashboard bind changed. Restart the dashboard service to apply the new host or port.")
+    return 0 if refreshed_payload.get("configured") else 2
 
 
 def parse_csv(value: str | None) -> list[str]:
@@ -603,6 +1172,14 @@ def parse_bool(value: str | None, default: bool) -> bool:
     if value is None:
         return default
     return value.strip().lower() in {"1", "true", "yes", "on"}
+
+
+def parse_timeout_seconds(value: str | None, default: int) -> int:
+    text = (value or "").strip()
+    if not text:
+        return default
+    seconds = int(text)
+    return seconds if seconds > 0 else 0
 
 
 def severity_rank(value: str) -> int:
@@ -789,9 +1366,11 @@ def build_config() -> Config:
             allowed_senders.append(discovered_sender)
 
     expected_public_ports = parse_csv(os.environ.get("DEFENDOS_EXPECTED_PUBLIC_PORTS")) or ["22", "80", "443"]
-    codex_timeout_seconds = int(os.environ.get("DEFENDOS_CODEX_TIMEOUT_SECONDS") or "900")
-    codex_scheduled_timeout_seconds = int(
-        os.environ.get("DEFENDOS_CODEX_SCHEDULED_TIMEOUT_SECONDS") or str(min(codex_timeout_seconds, 180))
+    codex_timeout_seconds = parse_timeout_seconds(os.environ.get("DEFENDOS_CODEX_TIMEOUT_SECONDS"), 900)
+    scheduled_timeout_default = 0 if codex_timeout_seconds == 0 else min(codex_timeout_seconds, 180)
+    codex_scheduled_timeout_seconds = parse_timeout_seconds(
+        os.environ.get("DEFENDOS_CODEX_SCHEDULED_TIMEOUT_SECONDS"),
+        scheduled_timeout_default,
     )
 
     return Config(
@@ -1116,7 +1695,7 @@ def run_codex_investigation(
     *,
     run_dir: Path,
     prompt: str,
-    timeout_seconds: int,
+    timeout_seconds: int | None,
 ) -> dict[str, Any] | None:
     codex_bin = resolve_codex_bin(config)
     if not codex_bin:
@@ -1215,7 +1794,7 @@ def run_codex_smoke_test(config: Config) -> dict[str, Any]:
         command,
         env=build_subprocess_env(config),
         cwd=config.base_dir,
-        timeout=min(config.codex_timeout_seconds, 180),
+        timeout=None if config.codex_timeout_seconds <= 0 else config.codex_timeout_seconds,
     )
     write_text(stdout_path, completed.stdout)
     write_text(stderr_path, completed.stderr)
@@ -1234,10 +1813,14 @@ def run_codex_smoke_test(config: Config) -> dict[str, Any]:
     return result
 
 
-def codex_timeout_for_trigger(config: Config, trigger_kind: str) -> int:
+def codex_timeout_for_trigger(config: Config, trigger_kind: str) -> int | None:
     if trigger_kind == "scheduled-healthcheck":
+        if config.codex_scheduled_timeout_seconds <= 0:
+            return None
+        if config.codex_timeout_seconds <= 0:
+            return config.codex_scheduled_timeout_seconds
         return min(config.codex_timeout_seconds, config.codex_scheduled_timeout_seconds)
-    return config.codex_timeout_seconds
+    return None if config.codex_timeout_seconds <= 0 else config.codex_timeout_seconds
 
 
 def compose_html_email(subject: str, body: str) -> str:
@@ -1918,7 +2501,7 @@ def read_run_detail(config: Config, run_id: str) -> dict[str, Any] | None:
 def build_status_payload(config: Config) -> dict[str, Any]:
     recent_runs = list_recent_runs(config, limit=12)
     latest_run = recent_runs[0] if recent_runs else None
-    codex_ready = bool(resolve_codex_bin(config) and config.openai_api_key)
+    codex_ready = bool(config.codex_enabled and resolve_codex_bin(config) and config.openai_api_key)
     resend_ready = bool(config.resend_api_key)
     smtp_ready = bool(config.smtp_host and config.smtp_username and config.smtp_password)
     imap_ready = bool(config.imap_host and config.imap_username and config.imap_password)
@@ -1930,7 +2513,9 @@ def build_status_payload(config: Config) -> dict[str, Any]:
         "allowed_senders": config.allowed_senders,
         "expected_public_ports": config.expected_public_ports,
         "trusted_login_ips": config.trusted_login_ips,
+        "email_trigger_prefix": config.email_trigger_prefix,
         "codex_bin": resolve_codex_bin(config) or config.codex_bin,
+        "codex_enabled": config.codex_enabled,
         "codex_model": config.codex_model,
         "codex_timeout_seconds": config.codex_timeout_seconds,
         "codex_scheduled_timeout_seconds": config.codex_scheduled_timeout_seconds,
@@ -1949,6 +2534,7 @@ def build_status_payload(config: Config) -> dict[str, Any]:
         "last_alert": read_json(config.last_alert_path, {}),
         "inbox_state": read_json(config.inbox_state_path, {}),
         "config": config_payload,
+        "setup": build_setup_payload(config),
     }
 
 
@@ -2053,6 +2639,32 @@ class DefendOSHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
         body = self.read_json_body()
+
+        if parsed.path == "/api/setup":
+            updates = {key: body.get(key) for key in SETUP_ORDER if key in body}
+            try:
+                refreshed_config = save_setup_values(self.defend_config, updates)
+            except (RuntimeError, ValueError) as error:
+                self.send_json({"error": str(error)}, status=400)
+                return
+            self.server.defend_config = refreshed_config  # type: ignore[attr-defined]
+            restart_required = any(key in updates for key in {"DEFENDOS_DASHBOARD_HOST", "DEFENDOS_DASHBOARD_PORT"})
+            append_event(
+                refreshed_config,
+                "setup_saved",
+                {
+                    "source": "dashboard",
+                    "updated_keys": sorted(updates.keys()),
+                    "restart_required": restart_required,
+                },
+            )
+            payload = build_status_payload(refreshed_config)
+            payload["setup_saved"] = {
+                "updated_keys": sorted(updates.keys()),
+                "restart_required": restart_required,
+            }
+            self.send_json(payload)
+            return
 
         if parsed.path == "/api/actions/healthcheck":
             self.send_json(spawn_background_job(self.defend_config, ["healthcheck"]))
@@ -2248,6 +2860,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="DefendOS global VPS surveillance agent")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
+    setup_parser = subparsers.add_parser("setup", help="Run the guided setup wizard")
+    setup_parser.add_argument("--status", action="store_true", help="Print setup completeness and exit")
+    setup_parser.add_argument("--only-missing", action="store_true", help="Prompt only fields still missing")
+
     healthcheck_parser = subparsers.add_parser("healthcheck", help="Run a scheduled healthcheck")
     healthcheck_parser.add_argument("--skip-codex", action="store_true", help="Skip Codex investigation")
     healthcheck_parser.add_argument("--no-email", action="store_true", help="Do not send an email")
@@ -2287,6 +2903,8 @@ def main() -> int:
     config.locks_dir.mkdir(parents=True, exist_ok=True)
     config.jobs_dir.mkdir(parents=True, exist_ok=True)
 
+    if args.command == "setup":
+        return setup_command(config, args)
     if args.command == "healthcheck":
         return healthcheck_command(config, args)
     if args.command == "poll-inbox":

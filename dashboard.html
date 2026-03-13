@@ -67,6 +67,8 @@
       }
 
       button,
+      input,
+      select,
       textarea {
         font: inherit;
       }
@@ -601,6 +603,183 @@
         box-shadow: 0 0 0 4px rgba(188, 255, 0, 0.08);
       }
 
+      .setup-form {
+        display: grid;
+        gap: 16px;
+      }
+
+      .setup-section {
+        display: grid;
+        gap: 16px;
+        margin: 0;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 22px;
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .setup-section-head {
+        display: grid;
+        gap: 6px;
+      }
+
+      .setup-section-title {
+        font-size: 16px;
+        font-weight: 640;
+      }
+
+      .setup-section-copy {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .setup-fields {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 14px;
+      }
+
+      .setup-field {
+        display: grid;
+        gap: 10px;
+        min-width: 0;
+      }
+
+      .setup-label-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .setup-label {
+        font-size: 13px;
+        font-weight: 620;
+      }
+
+      .setup-required,
+      .setup-secret {
+        display: inline-flex;
+        align-items: center;
+        min-height: 24px;
+        padding: 4px 8px;
+        border-radius: 999px;
+        font-family: "IBM Plex Mono", "SFMono-Regular", Consolas, monospace;
+        font-size: 10px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .setup-required {
+        border: 1px solid rgba(255, 207, 98, 0.2);
+        background: rgba(255, 207, 98, 0.12);
+        color: #ffe39d;
+      }
+
+      .setup-secret {
+        border: 1px solid rgba(188, 255, 0, 0.16);
+        background: rgba(188, 255, 0, 0.08);
+        color: #d7fba5;
+      }
+
+      .setup-input,
+      .setup-select {
+        width: 100%;
+        min-height: 46px;
+        padding: 12px 14px;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(0, 0, 0, 0.22);
+        color: var(--ink);
+      }
+
+      .setup-select {
+        appearance: none;
+      }
+
+      .setup-input:focus,
+      .setup-select:focus {
+        outline: none;
+        border-color: rgba(188, 255, 0, 0.5);
+        box-shadow: 0 0 0 4px rgba(188, 255, 0, 0.08);
+      }
+
+      .setup-input::placeholder {
+        color: rgba(189, 183, 168, 0.68);
+      }
+
+      .setup-helper {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .setup-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 4px 2px 0;
+      }
+
+      .setup-toolbar-copy {
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 1.55;
+      }
+
+      .setup-summary-card {
+        display: grid;
+        gap: 14px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .setup-summary-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      .setup-summary-title {
+        font-size: 15px;
+        font-weight: 640;
+      }
+
+      .setup-summary-copy {
+        color: var(--muted);
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .setup-summary-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+
+      .setup-chip {
+        display: inline-flex;
+        align-items: center;
+        min-height: 32px;
+        padding: 7px 10px;
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.04);
+        color: var(--ink);
+        font-size: 12px;
+      }
+
+      .console-compact {
+        min-height: 92px;
+        margin-top: 16px;
+      }
+
       .console {
         min-height: 132px;
         margin: 0;
@@ -914,7 +1093,8 @@
         }
 
         .meta-grid,
-        .config-grid {
+        .config-grid,
+        .setup-fields {
           grid-template-columns: 1fr;
         }
 
@@ -950,26 +1130,33 @@
             </span>
             <span class="pill">01</span>
           </a>
+          <a class="rail-link" href="#setup">
+            <span class="rail-link-label">
+              <span class="rail-link-title">Setup</span>
+              <span class="rail-link-meta">wizard et secrets</span>
+            </span>
+            <span class="pill">02</span>
+          </a>
           <a class="rail-link" href="#operations">
             <span class="rail-link-label">
               <span class="rail-link-title">Operations</span>
               <span class="rail-link-meta">actions et commandes</span>
             </span>
-            <span class="pill">02</span>
+            <span class="pill">03</span>
           </a>
           <a class="rail-link" href="#runs">
             <span class="rail-link-label">
               <span class="rail-link-title">Runs</span>
               <span class="rail-link-meta">timeline et detail</span>
             </span>
-            <span class="pill">03</span>
+            <span class="pill">04</span>
           </a>
           <a class="rail-link" href="#activity">
             <span class="rail-link-label">
               <span class="rail-link-title">Activity</span>
               <span class="rail-link-meta">events et config</span>
             </span>
-            <span class="pill">04</span>
+            <span class="pill">05</span>
           </a>
         </nav>
 
@@ -1058,6 +1245,37 @@
               </div>
             </article>
           </div>
+        </section>
+
+        <section id="setup" class="section-grid">
+          <article class="panel panel-dark">
+            <div class="panel-body">
+              <div class="panel-head">
+                <div>
+                  <div class="kicker">Guided setup</div>
+                  <h2 class="panel-title">Configuration posture</h2>
+                  <p class="panel-copy">Renseigne ou ajuste DefendOS depuis le dashboard. Les secrets laisses vides sont conserves tels quels.</p>
+                </div>
+              </div>
+              <div id="setupSummary" class="details-grid"></div>
+            </div>
+          </article>
+
+          <article class="panel panel-dark">
+            <div class="panel-body">
+              <div class="panel-head">
+                <div>
+                  <div class="kicker">Wizard</div>
+                  <h2 class="panel-title">Live setup editor</h2>
+                  <p class="panel-copy">Champs conditionnels selon le provider mail, Codex et l'inbox. Sauvegarde locale dans `defendos.env`.</p>
+                </div>
+              </div>
+              <form id="setupForm" class="setup-form" onsubmit="saveSetup(event)">
+                <div class="empty">Chargement du setup wizard...</div>
+              </form>
+              <pre id="setupResult" class="console console-compact">Aucune modification de setup en attente.</pre>
+            </div>
+          </article>
         </section>
 
         <section id="operations" class="section-grid">
@@ -1164,6 +1382,7 @@
     <script>
       let selectedRunId = null;
       let lastStatusPayload = null;
+      let setupDirty = false;
 
       function escapeHtml(value) {
         return String(value ?? "").replace(/[&<>"]/g, function (char) {
@@ -1210,6 +1429,13 @@
         });
       }
 
+      function formatTimeout(value) {
+        if (value === null || value === undefined || value === "") return "-";
+        const numeric = Number(value);
+        if (!Number.isNaN(numeric) && numeric <= 0) return "No limit";
+        return `${value}s`;
+      }
+
       function formatRelative(value) {
         if (!value) return "unknown";
         const date = new Date(value);
@@ -1243,6 +1469,11 @@
         if (ready === true) return "ready";
         if (warnLabel) return warnLabel;
         return "blocked";
+      }
+
+      function setupFieldVisible(field, values) {
+        if (!field || !field.show_if) return true;
+        return String(values[field.show_if.field] ?? "") === String(field.show_if.value ?? "");
       }
 
       function summarizeEvent(event) {
@@ -1328,8 +1559,8 @@
           },
           {
             label: "Codex policy",
-            value: `${config.codex_scheduled_timeout_seconds || "-"}s`,
-            copy: `auto timeout • full ${config.codex_timeout_seconds || "-"}s`,
+            value: formatTimeout(config.codex_scheduled_timeout_seconds),
+            copy: `auto timeout • full ${formatTimeout(config.codex_timeout_seconds)}`,
           },
           {
             label: "Inbox state",
@@ -1352,14 +1583,16 @@
         const cards = [
           {
             title: "Codex",
-            state: config.codex_ready ? "ready" : "blocked",
-            copy: config.codex_ready
-              ? `CLI pret sur ${config.codex_bin || "codex"}`
-              : "Codex CLI ou OPENAI_API_KEY absent.",
+            state: config.codex_enabled ? (config.codex_ready ? "ready" : "blocked") : "warn",
+            label: config.codex_enabled ? null : "disabled",
+            copy: !config.codex_enabled
+              ? "Investigations Codex desactivees dans le setup."
+              : (config.codex_ready ? `CLI pret sur ${config.codex_bin || "codex"}` : "Codex CLI ou OPENAI_API_KEY absent."),
           },
           {
             title: "Outbound email",
             state: config.resend_ready || config.smtp_ready ? "ready" : "blocked",
+            label: null,
             copy: config.resend_ready
               ? "Transport Resend pret."
               : (config.smtp_ready ? "Transport SMTP pret." : "Aucun transport sortant complet."),
@@ -1367,6 +1600,7 @@
           {
             title: "Inbox polling",
             state: config.imap_ready || config.inbox_provider === "resend" ? (inboxState.skipped ? "warn" : "ready") : "blocked",
+            label: inboxState.skipped ? "degraded" : null,
             copy: inboxState.skipped
               ? `Polling degrade: ${inboxState.reason || "unknown"}`
               : `Provider: ${config.inbox_provider || "n/a"}`,
@@ -1374,6 +1608,7 @@
           {
             title: "Alert routing",
             state: config.alert_email_to ? "ready" : "blocked",
+            label: null,
             copy: config.alert_email_to
               ? `Alertes vers ${config.alert_email_to}`
               : "Aucun destinataire d'alerte configure.",
@@ -1383,22 +1618,22 @@
           <div class="readiness-card">
             <div class="readiness-top">
               <div class="readiness-title">${escapeHtml(card.title)}</div>
-              <span class="status-tone ${toneClass(card.state)}">${escapeHtml(statusLabel(card.state === "ready", card.state === "warn" ? "degraded" : undefined))}</span>
+              <span class="status-tone ${toneClass(card.state)}">${escapeHtml(card.label || statusLabel(card.state === "ready", card.state === "warn" ? "degraded" : undefined))}</span>
             </div>
             <div class="readiness-copy">${escapeHtml(card.copy)}</div>
           </div>
         `).join("");
 
         const sidebarCards = [
-          ["Codex", config.codex_ready ? "ready" : "blocked"],
-          ["Outbound", config.resend_ready || config.smtp_ready ? "ready" : "blocked"],
-          ["Inbox", config.imap_ready || config.inbox_provider === "resend" ? (inboxState.skipped ? "warn" : "ready") : "blocked"],
-          ["Dashboard", "ready"],
+          ["Codex", config.codex_enabled ? (config.codex_ready ? "ready" : "blocked") : "warn", config.codex_enabled ? null : "disabled"],
+          ["Outbound", config.resend_ready || config.smtp_ready ? "ready" : "blocked", null],
+          ["Inbox", config.imap_ready || config.inbox_provider === "resend" ? (inboxState.skipped ? "warn" : "ready") : "blocked", inboxState.skipped ? "degraded" : null],
+          ["Dashboard", "ready", null],
         ];
-        document.getElementById("sidebarStatus").innerHTML = sidebarCards.map(([label, state]) => `
+        document.getElementById("sidebarStatus").innerHTML = sidebarCards.map(([label, state, customLabel]) => `
           <div class="status-chip">
             <strong>${escapeHtml(label)}</strong>
-            <span class="status-tone ${toneClass(state)}">${escapeHtml(statusLabel(state === "ready", state === "warn" ? "degraded" : undefined))}</span>
+            <span class="status-tone ${toneClass(state)}">${escapeHtml(customLabel || statusLabel(state === "ready", state === "warn" ? "degraded" : undefined))}</span>
           </div>
         `).join("");
 
@@ -1433,6 +1668,187 @@
             <div class="meta-value mono">${escapeHtml(card.extra)}</div>
           </div>
         `).join("");
+      }
+
+      function renderSetupSummary(setup) {
+        const root = document.getElementById("setupSummary");
+        if (!setup) {
+          root.innerHTML = '<div class="empty">Setup indisponible.</div>';
+          return;
+        }
+
+        const missingFields = setup.missing_fields || [];
+        const configured = Boolean(setup.configured);
+        const summaryTone = configured ? "ready" : "warn";
+        const statusText = configured ? "ready" : `${missingFields.length} missing`;
+        const draftText = setupDirty ? "Brouillon local non sauvegarde." : "Synchronise avec le fichier local.";
+
+        root.innerHTML = `
+          <div class="setup-summary-card">
+            <div class="setup-summary-top">
+              <div>
+                <div class="setup-summary-title">${configured ? "Setup complete" : "Setup incomplete"}</div>
+                <div class="setup-summary-copy">${configured ? "La chaine de surveillance a ses prerequis visibles." : "Des champs requis manquent encore pour fermer toute la boucle DefendOS."}</div>
+              </div>
+              <span class="status-tone ${toneClass(summaryTone)}">${escapeHtml(statusText)}</span>
+            </div>
+            <div class="meta-grid">
+              <div class="meta-card">
+                <div class="meta-label">Config file</div>
+                <div class="meta-value mono">${escapeHtml(setup.env_path || "n/a")}</div>
+              </div>
+              <div class="meta-card">
+                <div class="meta-label">Draft state</div>
+                <div class="meta-value">${escapeHtml(draftText)}</div>
+              </div>
+            </div>
+            <div>
+              <div class="meta-label">Required gaps</div>
+              <div class="setup-summary-list" style="margin-top:10px;">
+                ${missingFields.length
+                  ? missingFields.map((field) => `<div class="setup-chip">${escapeHtml(field.label || field.key || "field")}</div>`).join("")
+                  : '<div class="setup-chip">Aucun champ requis manquant</div>'}
+              </div>
+            </div>
+          </div>
+        `;
+      }
+
+      function renderSetup(payload, force = false) {
+        const setup = payload.setup || null;
+        renderSetupSummary(setup);
+
+        if (!setup || !setup.sections) {
+          document.getElementById("setupForm").innerHTML = '<div class="empty">Setup indisponible.</div>';
+          return;
+        }
+
+        if (setupDirty && !force) {
+          return;
+        }
+
+        const form = document.getElementById("setupForm");
+        form.innerHTML = setup.sections.map((section) => `
+          <section class="setup-section">
+            <div class="setup-section-head">
+              <div class="setup-section-title">${escapeHtml(section.title || "Section")}</div>
+              <div class="setup-section-copy">${escapeHtml(section.description || "")}</div>
+            </div>
+            <div class="setup-fields">
+              ${(section.fields || []).map((field) => {
+                const helperParts = [];
+                if (field.helper) helperParts.push(field.helper);
+                if (field.secret) {
+                  helperParts.push(field.present ? "Laisse vide pour conserver le secret actuel." : "Saisis le secret pour activer cette brique.");
+                }
+                const helper = helperParts.join(" ");
+                const showIfField = field.show_if ? field.show_if.field : "";
+                const showIfValue = field.show_if ? field.show_if.value : "";
+                const badges = [
+                  field.required ? '<span class="setup-required">required</span>' : "",
+                  field.secret ? `<span class="setup-secret">${field.present ? "secret set" : "secret empty"}</span>` : "",
+                ].filter(Boolean).join("");
+
+                if (field.input === "select") {
+                  return `
+                    <div class="setup-field" data-field-wrapper data-show-if-field="${escapeHtml(showIfField)}" data-show-if-value="${escapeHtml(showIfValue)}" style="${field.visible ? "" : "display:none;"}">
+                      <div class="setup-label-row">
+                        <label class="setup-label" for="setup-${escapeHtml(field.key)}">${escapeHtml(field.label || field.key)}</label>
+                        ${badges}
+                      </div>
+                      <select
+                        id="setup-${escapeHtml(field.key)}"
+                        class="setup-select"
+                        data-setup-key="${escapeHtml(field.key)}"
+                        data-secret="${field.secret ? "true" : "false"}"
+                      >
+                        ${(field.choices || []).map((choice) => `
+                          <option value="${escapeHtml(choice)}"${String(field.value || "") === String(choice) ? " selected" : ""}>${escapeHtml(choice)}</option>
+                        `).join("")}
+                      </select>
+                      ${helper ? `<div class="setup-helper">${escapeHtml(helper)}</div>` : ""}
+                    </div>
+                  `;
+                }
+
+                return `
+                  <div class="setup-field" data-field-wrapper data-show-if-field="${escapeHtml(showIfField)}" data-show-if-value="${escapeHtml(showIfValue)}" style="${field.visible ? "" : "display:none;"}">
+                    <div class="setup-label-row">
+                      <label class="setup-label" for="setup-${escapeHtml(field.key)}">${escapeHtml(field.label || field.key)}</label>
+                      ${badges}
+                    </div>
+                    <input
+                      id="setup-${escapeHtml(field.key)}"
+                      class="setup-input"
+                      type="${field.secret ? "password" : "text"}"
+                      value="${field.secret ? "" : escapeHtml(field.value || "")}"
+                      placeholder="${escapeHtml(field.placeholder || (field.secret ? "Current secret kept if left blank" : ""))}"
+                      data-setup-key="${escapeHtml(field.key)}"
+                      data-secret="${field.secret ? "true" : "false"}"
+                      autocomplete="${field.secret ? "new-password" : "off"}"
+                    />
+                    ${helper ? `<div class="setup-helper">${escapeHtml(helper)}</div>` : ""}
+                  </div>
+                `;
+              }).join("")}
+            </div>
+          </section>
+        `).join("") + `
+          <div class="setup-toolbar">
+            <div class="setup-toolbar-copy">Tu peux aussi lancer le wizard terminal avec <span class="mono">python3 defendos.py setup</span>.</div>
+            <div class="button-row">
+              <button type="submit" class="button button-primary">Save setup</button>
+              <button type="button" class="button button-ghost" onclick="discardSetupDraft()">Reload values</button>
+            </div>
+          </div>
+        `;
+
+        document.querySelectorAll("#setupForm [data-setup-key]").forEach((input) => {
+          const handler = () => {
+            markSetupDirty();
+            refreshSetupVisibility();
+          };
+          input.addEventListener("input", handler);
+          input.addEventListener("change", handler);
+        });
+        refreshSetupVisibility();
+      }
+
+      function markSetupDirty() {
+        setupDirty = true;
+        const setupResult = document.getElementById("setupResult");
+        if (setupResult) {
+          setupResult.textContent = "Modifications locales en attente de sauvegarde.";
+        }
+        if (lastStatusPayload) {
+          renderSetupSummary(lastStatusPayload.setup || null);
+        }
+      }
+
+      function collectSetupValues() {
+        const values = {};
+        document.querySelectorAll("#setupForm [data-setup-key]").forEach((input) => {
+          values[input.dataset.setupKey] = input.value ?? "";
+        });
+        return values;
+      }
+
+      function refreshSetupVisibility() {
+        const values = collectSetupValues();
+        document.querySelectorAll("#setupForm [data-field-wrapper]").forEach((wrapper) => {
+          const dependsOn = wrapper.dataset.showIfField || "";
+          const expected = wrapper.dataset.showIfValue || "";
+          const visible = !dependsOn || String(values[dependsOn] ?? "") === expected;
+          wrapper.style.display = visible ? "" : "none";
+        });
+      }
+
+      function discardSetupDraft() {
+        setupDirty = false;
+        if (lastStatusPayload) {
+          renderSetup(lastStatusPayload, true);
+        }
+        document.getElementById("setupResult").textContent = "Brouillon local abandonne. Valeurs rechargees depuis la config.";
       }
 
       function renderRuns(runs) {
@@ -1589,11 +2005,13 @@
           ["Allowed senders", (config.allowed_senders || []).join(", ") || "none"],
           ["Expected ports", (config.expected_public_ports || []).join(", ") || "none"],
           ["Trusted IPs", (config.trusted_login_ips || []).join(", ") || "none"],
+          ["Email trigger", config.email_trigger_prefix || "defendos:"],
           ["Email provider", config.email_provider || "n/a"],
           ["Inbox provider", config.inbox_provider || "n/a"],
+          ["Codex state", config.codex_enabled ? "enabled" : "disabled"],
           ["Codex binary", config.codex_bin || "codex"],
           ["Codex model", config.codex_model || "default"],
-          ["Codex timeouts", `${config.codex_scheduled_timeout_seconds || "-"}s auto / ${config.codex_timeout_seconds || "-"}s full`],
+          ["Codex timeouts", `${formatTimeout(config.codex_scheduled_timeout_seconds)} auto / ${formatTimeout(config.codex_timeout_seconds)} full`],
           ["Dashboard bind", config.dashboard_bind || "127.0.0.1:8787"],
           ["Inbox state", inboxState.reason || "polling nominal"],
         ];
@@ -1658,35 +2076,68 @@
         }
       }
 
+      async function applyStatusPayload(payload, forceSetup = false) {
+        lastStatusPayload = payload;
+        const setup = payload.setup || {};
+        const setupLabel = setup.configured ? "setup ready" : `${setup.missing_count || 0} setup gaps`;
+
+        document.getElementById("refreshStamp").textContent = `Refreshed ${formatTime(payload.generated_at)}`;
+        document.getElementById("headerPills").innerHTML = `
+          <div class="pill">${escapeHtml((payload.config || {}).email_provider || "n/a")} mail</div>
+          <div class="pill">${escapeHtml((payload.config || {}).inbox_provider || "n/a")} inbox</div>
+          <div class="pill">${escapeHtml(setupLabel)}</div>
+          <div class="pill">${escapeHtml((payload.latest_run || {}).run_id || "no-run")}</div>
+        `;
+        renderHero(payload);
+        renderStats(payload);
+        renderReadiness(payload);
+        renderAlertCard(payload);
+        renderSetup(payload, forceSetup);
+        renderRuns(payload.recent_runs || []);
+        renderEvents(payload.events || []);
+        renderConfig(payload);
+        renderSnapshot(payload);
+
+        const availableRuns = (payload.recent_runs || []).map((run) => run.run_id);
+        if (!selectedRunId || !availableRuns.includes(selectedRunId)) {
+          selectedRunId = (payload.latest_run || {}).run_id || null;
+        }
+        if (selectedRunId) {
+          await loadRunDetail(selectedRunId, false);
+        } else {
+          renderRunDetail(null);
+        }
+      }
+
+      async function saveSetup(event) {
+        event.preventDefault();
+        const result = document.getElementById("setupResult");
+        result.textContent = "Enregistrement du setup en cours...";
+        try {
+          const response = await fetch("/api/setup", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(collectSetupValues()),
+          });
+          const payload = await response.json();
+          if (!response.ok) {
+            throw new Error(payload.error || `HTTP ${response.status}`);
+          }
+          setupDirty = false;
+          await applyStatusPayload(payload, true);
+          result.textContent = payload.setup_saved && payload.setup_saved.restart_required
+            ? "Setup enregistre. Redemarre le service dashboard pour appliquer le nouveau host ou port."
+            : "Setup enregistre. Les valeurs live ont ete rechargees.";
+        } catch (error) {
+          result.textContent = `Erreur de save setup: ${String(error)}`;
+        }
+      }
+
       async function fetchStatus() {
         try {
           const response = await fetch("/api/status", { cache: "no-store" });
           const payload = await response.json();
-          lastStatusPayload = payload;
-          document.getElementById("refreshStamp").textContent = `Refreshed ${formatTime(payload.generated_at)}`;
-          document.getElementById("headerPills").innerHTML = `
-            <div class="pill">${escapeHtml((payload.config || {}).email_provider || "n/a")} mail</div>
-            <div class="pill">${escapeHtml((payload.config || {}).inbox_provider || "n/a")} inbox</div>
-            <div class="pill">${escapeHtml((payload.latest_run || {}).run_id || "no-run")}</div>
-          `;
-          renderHero(payload);
-          renderStats(payload);
-          renderReadiness(payload);
-          renderAlertCard(payload);
-          renderRuns(payload.recent_runs || []);
-          renderEvents(payload.events || []);
-          renderConfig(payload);
-          renderSnapshot(payload);
-
-          const availableRuns = (payload.recent_runs || []).map((run) => run.run_id);
-          if (!selectedRunId || !availableRuns.includes(selectedRunId)) {
-            selectedRunId = (payload.latest_run || {}).run_id || null;
-          }
-          if (selectedRunId) {
-            await loadRunDetail(selectedRunId, false);
-          } else {
-            renderRunDetail(null);
-          }
+          await applyStatusPayload(payload, false);
         } catch (error) {
           document.getElementById("actionResult").textContent = `Erreur de refresh: ${String(error)}`;
         }
