@@ -1,0 +1,61 @@
+<svg width="1600" height="900" viewBox="0 0 1600 900" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1600" height="900" rx="32" fill="#09100D"/>
+  <rect x="24" y="24" width="1552" height="852" rx="28" fill="url(#bg)"/>
+  <text x="88" y="112" fill="#F2F0E6" font-family="Arial, Helvetica, sans-serif" font-size="54" font-weight="700">DefendOS</text>
+  <text x="88" y="158" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="28">Global VPS surveillance, email automation, and guided incident triage.</text>
+
+  <rect x="88" y="232" width="286" height="152" rx="24" fill="#121C18" stroke="#23342D"/>
+  <text x="120" y="286" fill="#C0FF5A" font-family="Arial, Helvetica, sans-serif" font-size="20">1. Inputs</text>
+  <text x="120" y="326" fill="#F2F0E6" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">Timers + Email + UI</text>
+  <text x="120" y="362" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="22">Scheduled checks, inbox commands,</text>
+  <text x="120" y="390" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="22">and manual operator actions.</text>
+
+  <rect x="446" y="192" width="344" height="232" rx="28" fill="#F3EEDF"/>
+  <text x="482" y="252" fill="#577B00" font-family="Arial, Helvetica, sans-serif" font-size="20">2. Machine healthcheck</text>
+  <text x="482" y="302" fill="#17140E" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Whole-system inspection</text>
+  <text x="482" y="344" fill="#4E4A42" font-family="Arial, Helvetica, sans-serif" font-size="22">SSH, logs, ports, sessions, cron,</text>
+  <text x="482" y="372" fill="#4E4A42" font-family="Arial, Helvetica, sans-serif" font-size="22">systemd, firewall, brute-force clues.</text>
+
+  <rect x="862" y="192" width="344" height="232" rx="28" fill="#121C18" stroke="#23342D"/>
+  <text x="898" y="252" fill="#C0FF5A" font-family="Arial, Helvetica, sans-serif" font-size="20">3. Codex investigation</text>
+  <text x="898" y="302" fill="#F2F0E6" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Read-only deep dive</text>
+  <text x="898" y="344" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="22">Runs `codex exec` in read-only mode</text>
+  <text x="898" y="372" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="22">to explain suspicious behavior.</text>
+
+  <rect x="1278" y="232" width="236" height="152" rx="24" fill="#121C18" stroke="#23342D"/>
+  <text x="1310" y="286" fill="#C0FF5A" font-family="Arial, Helvetica, sans-serif" font-size="20">4. Outputs</text>
+  <text x="1310" y="326" fill="#F2F0E6" font-family="Arial, Helvetica, sans-serif" font-size="30" font-weight="700">Alert or reply</text>
+  <text x="1310" y="362" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="22">Dashboard update, alert email,</text>
+  <text x="1310" y="390" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="22">or threaded email response.</text>
+
+  <rect x="88" y="508" width="688" height="268" rx="28" fill="#121C18" stroke="#23342D"/>
+  <text x="124" y="568" fill="#C0FF5A" font-family="Arial, Helvetica, sans-serif" font-size="20">What DefendOS watches</text>
+  <text x="124" y="618" fill="#F2F0E6" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">Security posture of the whole VPS</text>
+  <text x="124" y="664" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="24">- Root logins and SSH password auth</text>
+  <text x="124" y="700" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="24">- Unexpected public ports and suspicious processes</text>
+  <text x="124" y="736" fill="#A9B7AD" font-family="Arial, Helvetica, sans-serif" font-size="24">- Inbox commands from approved senders only</text>
+
+  <rect x="824" y="508" width="690" height="268" rx="28" fill="#F3EEDF"/>
+  <text x="860" y="568" fill="#577B00" font-family="Arial, Helvetica, sans-serif" font-size="20">What it does not do by default</text>
+  <text x="860" y="618" fill="#17140E" font-family="Arial, Helvetica, sans-serif" font-size="34" font-weight="700">No blind auto-remediation</text>
+  <text x="860" y="664" fill="#4E4A42" font-family="Arial, Helvetica, sans-serif" font-size="24">- No package install</text>
+  <text x="860" y="700" fill="#4E4A42" font-family="Arial, Helvetica, sans-serif" font-size="24">- No config rewrite during investigations</text>
+  <text x="860" y="736" fill="#4E4A42" font-family="Arial, Helvetica, sans-serif" font-size="24">- No secret committed to git</text>
+
+  <path d="M374 308H430" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M790 308H846" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1206 308H1262" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M430 308L414 294" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M430 308L414 322" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M846 308L830 294" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M846 308L830 322" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1262 308L1246 294" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+  <path d="M1262 308L1246 322" stroke="#C0FF5A" stroke-width="6" stroke-linecap="round"/>
+
+  <defs>
+    <linearGradient id="bg" x1="150" y1="72" x2="1454" y2="840" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#0E1612"/>
+      <stop offset="1" stop-color="#111A16"/>
+    </linearGradient>
+  </defs>
+</svg>

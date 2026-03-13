@@ -1,54 +1,75 @@
 # DefendOS
 
-DefendOS is a standalone surveillance agent for a whole Linux VPS.
+> 👀 Global VPS surveillance with a local dashboard, a guided setup wizard, and read-only Codex investigations.
 
-It combines:
+<p align="center">
+  <img src="./assets/defendos-flow.svg" alt="DefendOS architecture overview" width="100%" />
+</p>
 
-1. A machine-wide healthcheck.
-2. A read-only `codex exec` investigation path.
-3. Email alerts for urgent findings.
-4. Email-triggered commands from an approved mailbox.
-5. A local dashboard on `127.0.0.1:8787`.
+<p align="center">
+  <img src="./assets/defendos-dashboard-preview.svg" alt="DefendOS dashboard mockup" width="100%" />
+</p>
 
-It can be configured in two guided ways:
+> The visuals above are safe mockups. They do not contain live server data, secrets, or private mailbox information.
 
-1. From the local dashboard setup wizard.
-2. From the interactive CLI wizard.
+## ✨ DefendOS in plain words
 
-## Repository layout
+DefendOS watches **the whole VPS**, not just one app.
 
-- `defendos.py`: main CLI entrypoint
-- `healthcheck.sh`: machine-wide shell checks
-- `dashboard.html`: local dashboard UI
-- `codex_output.schema.json`: structured Codex output schema
-- `defendos.env.example`: safe config template
-- `systemd/*.service.tpl`: systemd unit templates
-- `systemd/*.timer`: systemd timers
-- `scripts/install-systemd.sh`: installs rendered systemd units for the current checkout path
-- `scripts/smoke-test.sh`: local smoke test
+It is built to answer simple questions:
 
-The repository is publication-safe by default:
+- 👀 "Is something weird happening on this machine?"
+- 🔐 "Did someone log in as root from a suspicious IP?"
+- 🧠 "Can Codex inspect the server in read-only mode and explain what it sees?"
+- 🚨 "If it looks urgent, can I get an email right away?"
+- 📬 "Can I trigger a check by email and get a reply in the same thread?"
+- 🖥️ "Can I configure and follow everything from one dashboard?"
 
-- runtime secrets stay in `defendos.env`
-- runtime logs and state stay in `state/`
-- both are ignored by git
+## 🧭 What DefendOS does
 
-The tracked files are intended to stay generic:
+- 👀 Runs a **machine-wide healthcheck** on SSH, auth logs, ports, sessions, cron, systemd, firewall, and suspicious signals.
+- 🧠 Launches **`codex exec` in read-only mode** to investigate what looks abnormal.
+- 🚨 Sends an **alert email** when the final severity is high enough.
+- 📬 Polls a **dedicated inbox** and accepts commands only from approved senders.
+- 🧵 Replies by email in the same thread when it handles an inbound command.
+- 🖥️ Exposes a **local dashboard** for posture, runs, setup, and live operations.
 
-- no production mailbox credentials
-- no local runtime state
-- no machine-specific systemd paths in the committed templates
+## 🛑 What DefendOS does not do by default
 
-## Requirements
+- ❌ It does not blindly "fix" the server on its own.
+- ❌ It does not rewrite configs during investigations.
+- ❌ It does not install packages while triaging.
+- ❌ It does not commit secrets to git.
+- ✅ It is designed to help you **see**, **understand**, and **decide**.
 
-- Linux host
-- Python 3.11+
-- `bash`
-- optional: Codex CLI with `OPENAI_API_KEY`
-- optional: Resend or SMTP for outbound mail
-- optional: Resend Receiving or IMAP for inbound commands
+## 🟢 Emoji legend
 
-## Quick start
+- 🟢 ready: the chain is configured and usable
+- 🟡 degraded: it works, but something is partial or blocked
+- 🔴 critical: suspicious or dangerous signal on the server
+- 🔐 secret: local-only value, kept out of git
+- 📬 inbox: email command path
+- 🧠 Codex: read-only investigation layer
+
+## 🗺️ Simple flow
+
+```mermaid
+flowchart LR
+    A[⏱️ Timer or operator action] --> B[👀 Healthcheck]
+    C[📬 Approved email command] --> B
+    D[🖥️ Dashboard action] --> B
+    B --> E[🧠 Read-only Codex investigation]
+    B --> F[📦 Heuristic findings]
+    E --> G[🧾 Final result]
+    F --> G
+    G --> H[🚨 Alert email if urgent]
+    G --> I[🖥️ Dashboard update]
+    G --> J[🧵 Email reply if triggered by inbox]
+```
+
+## 🛠️ Guided setup
+
+DefendOS can be configured in **two guided ways**.
 
 ### Option A: dashboard setup wizard
 
@@ -58,55 +79,114 @@ Start the local dashboard:
 python3 ./defendos.py serve
 ```
 
-Then open `http://127.0.0.1:8787` and use the `Setup` section.
+Then open:
 
-The wizard writes `defendos.env` locally and keeps blank secret fields unchanged.
+```text
+http://127.0.0.1:8787
+```
 
-### Option B: CLI setup wizard
+Use the **Setup** section to:
 
-Run the guided CLI setup:
+- enter your mailbox and alert destination
+- choose outbound email provider
+- choose inbox provider
+- enable or disable Codex
+- keep existing secrets by leaving secret fields blank
+
+### Option B: interactive CLI wizard
+
+Run the full wizard:
 
 ```bash
 python3 ./defendos.py setup
 ```
 
-Prompt only what is still missing:
+Prompt only the missing fields:
 
 ```bash
 python3 ./defendos.py setup --only-missing
 ```
 
-Check setup completeness without editing anything:
+Check what is still missing without editing anything:
 
 ```bash
 python3 ./defendos.py setup --status
 ```
 
-### Option C: manual template
+### Option C: manual file template
 
-If you prefer a template file first:
+If you prefer to start from a local file:
 
 ```bash
 cp defendos.env.example defendos.env
 chmod 600 defendos.env
 ```
 
-At minimum, configure:
+## 🚀 Quick start
+
+### 1. Launch the guided setup
+
+Either:
+
+```bash
+python3 ./defendos.py serve
+```
+
+or:
+
+```bash
+python3 ./defendos.py setup
+```
+
+### 2. Install the systemd units
+
+```bash
+./scripts/install-systemd.sh
+```
+
+### 3. Run a first dry check
+
+```bash
+python3 ./defendos.py healthcheck --skip-codex --no-email
+```
+
+### 4. Check the setup status
+
+```bash
+python3 ./defendos.py setup --status
+```
+
+## ⚙️ What you usually need to configure
+
+At minimum:
 
 - `DEFENDOS_ALERT_EMAIL_TO`
 - `DEFENDOS_INBOX_ADDRESS`
 - `DEFENDOS_ALLOWED_SENDERS`
 - `DEFENDOS_TRUSTED_LOGIN_IPS`
 - `RESEND_API_KEY` or `DEFENDOS_SMTP_*`
-- `DEFENDOS_IMAP_*` or another inbound provider path
+- `DEFENDOS_IMAP_*` or another inbound path
 
-If you want DefendOS to reuse secrets already present elsewhere on the machine:
+If you already have secrets in other local `.env` files and want DefendOS to reuse them:
 
 ```bash
 DEFENDOS_EXTERNAL_ENV_FILES=/path/to/app-one/.env,/path/to/app-two/.env
 ```
 
-## Manual usage
+## 📦 Repository layout
+
+- `defendos.py`: main CLI entrypoint
+- `healthcheck.sh`: machine-wide shell checks
+- `dashboard.html`: local dashboard UI
+- `codex_output.schema.json`: structured Codex output schema
+- `defendos.env.example`: safe config template
+- `assets/*.svg`: safe README visuals and mockups
+- `systemd/*.service.tpl`: generic systemd unit templates
+- `systemd/*.timer`: systemd timers
+- `scripts/install-systemd.sh`: installs rendered systemd units for the current checkout path
+- `scripts/smoke-test.sh`: local smoke test
+
+## 🧪 Manual commands
 
 Run a scheduled-style check:
 
@@ -114,7 +194,7 @@ Run a scheduled-style check:
 python3 ./defendos.py healthcheck
 ```
 
-Dry-run the healthcheck without Codex or email:
+Dry-run a healthcheck without Codex or email:
 
 ```bash
 python3 ./defendos.py healthcheck --skip-codex --no-email
@@ -126,16 +206,10 @@ Poll the inbox once:
 python3 ./defendos.py poll-inbox
 ```
 
-Launch the guided CLI setup later:
+Launch a manual investigation:
 
 ```bash
-python3 ./defendos.py setup
-```
-
-Launch the local dashboard:
-
-```bash
-python3 ./defendos.py serve
+python3 ./defendos.py investigate --request "verify root SSH logins and unexpected public ports"
 ```
 
 Run the smoke test:
@@ -144,9 +218,9 @@ Run the smoke test:
 ./scripts/smoke-test.sh
 ```
 
-## Email trigger format
+## 📬 Email trigger format
 
-Send an email to the inbox address configured in `DEFENDOS_INBOX_ADDRESS` from an approved sender.
+Send an email to the configured inbox address from an approved sender.
 
 Example subject:
 
@@ -162,11 +236,11 @@ defendos: verify root ssh logins and unexpected public ports
 
 DefendOS will:
 
-1. Run the machine healthcheck.
-2. Ask Codex to investigate if enabled.
-3. Reply by email in the same thread.
+1. run the machine healthcheck
+2. ask Codex to investigate if enabled
+3. reply by email in the same thread
 
-## Systemd install
+## 🧩 Systemd install
 
 Render and install the systemd units for the current checkout path:
 
@@ -186,9 +260,27 @@ Check status:
 systemctl status --no-pager defendos-healthcheck.timer defendos-mailbox-poller.timer defendos-dashboard.service
 ```
 
-## Notes
+## 🔐 Public repository safety
 
-- Run it as `root` if you want full visibility into auth logs, fail2ban, root sessions, and other privileged data.
+This repository is meant to be safe to publish publicly.
+
+- runtime secrets stay in `defendos.env`
+- runtime state stays in `state/`
+- both are ignored by git
+- committed systemd units are templates, not machine-specific live units
+- README visuals are generic mockups, not real production screenshots
+
+Tracked files are intended to stay generic:
+
+- no production mailbox credentials
+- no API keys
+- no live run output
+- no personal dashboard screenshots
+- no machine-specific secret paths in the committed defaults
+
+## 📝 Notes
+
+- Run it as `root` if you want full visibility into auth logs, fail2ban, root sessions, and other privileged signals.
 - Codex is launched in read-only mode by default.
 - Set `DEFENDOS_CODEX_TIMEOUT_SECONDS=0` or `DEFENDOS_CODEX_SCHEDULED_TIMEOUT_SECONDS=0` to disable those timeouts.
 - Duplicate scheduled alerts are suppressed for a configurable window.
