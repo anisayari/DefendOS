@@ -34,6 +34,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlencode, urlparse
 from urllib.request import Request, urlopen
 
+from runtime_inventory import collect_runtime_inventory
+
 
 SEVERITY_ORDER = {
     "info": 0,
@@ -2705,6 +2707,7 @@ def read_run_detail(config: Config, run_id: str) -> dict[str, Any] | None:
 def build_status_payload(config: Config) -> dict[str, Any]:
     recent_runs = list_recent_runs(config, limit=12)
     latest_run = recent_runs[0] if recent_runs else None
+    runtime_inventory = collect_runtime_inventory()
     codex_ready = bool(config.codex_enabled and resolve_codex_bin(config) and config.openai_api_key)
     resend_ready = bool(config.resend_api_key)
     smtp_ready = bool(config.smtp_host and config.smtp_username and config.smtp_password)
@@ -2737,9 +2740,21 @@ def build_status_payload(config: Config) -> dict[str, Any]:
         "events": list(reversed(read_jsonl_tail(config.events_log_path, 30))),
         "last_alert": read_json(config.last_alert_path, {}),
         "inbox_state": read_json(config.inbox_state_path, {}),
+        "runtime_summary": runtime_inventory.get("summary", {}),
         "config": config_payload,
         "setup": build_setup_payload(config),
     }
+
+
+def read_dashboard_html_content(html_path: Path) -> str:
+    if html_path.exists():
+        return html_path.read_text(encoding="utf-8")
+
+    sibling_html = Path(__file__).with_name("dashboard.html")
+    if sibling_html.exists():
+        return sibling_html.read_text(encoding="utf-8")
+
+    return DEFAULT_DASHBOARD_HTML
 
 
 def spawn_background_job(config: Config, command_args: list[str]) -> dict[str, Any]:
@@ -2806,10 +2821,7 @@ class DefendOSHandler(BaseHTTPRequestHandler):
 
     def serve_dashboard(self) -> None:
         html_path = self.defend_config.dashboard_html_path
-        if html_path.exists():
-            content = html_path.read_text(encoding="utf-8")
-        else:
-            content = DEFAULT_DASHBOARD_HTML
+        content = read_dashboard_html_content(html_path)
         encoded = content.encode("utf-8")
         self.send_response(200)
         self.send_header("Content-Type", "text/html; charset=utf-8")
@@ -2836,6 +2848,10 @@ class DefendOSHandler(BaseHTTPRequestHandler):
                 self.send_json({"error": "Run not found"}, status=404)
                 return
             self.send_json(detail)
+            return
+
+        if parsed.path == "/api/runtime":
+            self.send_json(collect_runtime_inventory())
             return
 
         self.send_json({"error": "Not found"}, status=404)
@@ -3044,7 +3060,7 @@ def serve_dashboard_command(config: Config, args: argparse.Namespace) -> int:
     port = args.port or config.dashboard_port
 
     if not config.dashboard_html_path.exists():
-        write_text(config.dashboard_html_path, DEFAULT_DASHBOARD_HTML)
+        write_text(config.dashboard_html_path, read_dashboard_html_content(config.dashboard_html_path))
 
     server = ThreadingHTTPServer((host, port), DefendOSHandler)
     server.defend_config = config  # type: ignore[attr-defined]
