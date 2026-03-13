@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ipaddress
 import os
+import pwd
 import re
 import shlex
 import subprocess
@@ -83,13 +84,18 @@ def collect_runtime_inventory(cache_ttl_seconds: int = 5) -> dict[str, Any]:
             )
 
     processes = collect_processes(pid_to_sockets)
-    summary = summarize_inventory(processes, sockets)
+    process_by_pid = {process["pid"]: process for process in processes}
+    services = collect_systemd_services(process_by_pid)
+    services_summary = summarize_services(services)
+    summary = summarize_inventory(processes, sockets, services_summary)
     runtime_families = build_runtime_families(processes)
 
     payload = {
         "generated_at": utc_now_text(),
         "summary": summary,
         "runtime_families": runtime_families,
+        "services_summary": services_summary,
+        "services": services,
         "ports": sockets,
         "processes": processes,
     }
@@ -288,6 +294,217 @@ def collect_processes(pid_to_sockets: dict[int, list[dict[str, Any]]]) -> list[d
         )
     )
     return processes
+
+
+def collect_systemd_services(process_by_pid: dict[int, dict[str, Any]]) -> list[dict[str, Any]]:
+    raw = run_text(
+        [
+            "systemctl",
+            "show",
+            "--type=service",
+            "--all",
+            "--property=Id,Description,LoadState,ActiveState,SubState,FragmentPath,ExecMainPID,User,UnitFileState,Result,Type",
+            "--no-pager",
+        ],
+        timeout=12,
+    )
+
+    services: list[dict[str, Any]] = []
+    current: dict[str, str] = {}
+    for line in raw.splitlines():
+        if not line.strip():
+            service = build_service_record(current, process_by_pid)
+            if service:
+                services.append(service)
+            current = {}
+            continue
+        key, separator, value = line.partition("=")
+        if not separator:
+            continue
+        current[key] = value
+
+    service = build_service_record(current, process_by_pid)
+    if service:
+        services.append(service)
+
+    services.sort(
+        key=lambda item: (
+            0 if item["scope"] == "user" and item["needs_attention"] else 1 if item["scope"] == "user" else 2 if item["needs_attention"] else 3,
+            service_status_rank(item["status"]),
+            item["unit"],
+        )
+    )
+    return services
+
+
+def build_service_record(properties: dict[str, str], process_by_pid: dict[int, dict[str, Any]]) -> dict[str, Any] | None:
+    unit = (properties.get("Id") or "").strip()
+    if not unit:
+        return None
+
+    try:
+        main_pid = int((properties.get("ExecMainPID") or "0").strip() or "0")
+    except ValueError:
+        main_pid = 0
+
+    process = process_by_pid.get(main_pid)
+    configured_user = normalize_user_name((properties.get("User") or "").strip())
+    owner_user = configured_user or (process.get("user") if process else "") or None
+    load_state = (properties.get("LoadState") or "").strip().lower()
+    fragment_path = (properties.get("FragmentPath") or "").strip() or None
+    unit_file_state = (properties.get("UnitFileState") or "").strip().lower()
+    if load_state == "not-found" and not fragment_path and not unit_file_state and not process:
+        return None
+
+    scope = classify_service_scope(owner_user, properties.get("FragmentPath") or "", process)
+    service_type = (properties.get("Type") or "").strip().lower()
+    active_state = (properties.get("ActiveState") or "").strip().lower()
+    sub_state = (properties.get("SubState") or "").strip().lower()
+    result = (properties.get("Result") or "").strip().lower()
+    expected_up = service_should_be_running(scope, unit_file_state, service_type)
+    needs_attention = service_needs_attention(active_state, load_state, expected_up, result)
+    status = normalize_service_status(active_state, sub_state, load_state, needs_attention)
+    config_candidates = unique_preserve_order(
+        [fragment_path] + list(process.get("config_candidates") or []) if process else ([fragment_path] if fragment_path else [])
+    )
+    description = build_service_description(properties.get("Description") or "", process, status, needs_attention)
+
+    return {
+        "unit": unit,
+        "name": unit.removesuffix(".service"),
+        "description": (properties.get("Description") or "").strip() or unit,
+        "scope": scope,
+        "owner_user": owner_user,
+        "status": status,
+        "needs_attention": needs_attention,
+        "expected_up": expected_up,
+        "load_state": load_state,
+        "active_state": active_state,
+        "sub_state": sub_state,
+        "result": result,
+        "unit_file_state": unit_file_state,
+        "service_type": service_type or None,
+        "fragment_path": fragment_path,
+        "main_pid": main_pid,
+        "is_custom": bool(fragment_path and fragment_path.startswith("/etc/systemd/system")),
+        "application_name": process.get("application_name") if process else None,
+        "runtime": process.get("runtime") if process else None,
+        "process_user": process.get("user") if process else None,
+        "ports": process.get("ports") if process else [],
+        "primary_config": config_candidates[0] if config_candidates else None,
+        "config_candidates": config_candidates,
+        "detail_summary": description,
+    }
+
+
+def classify_service_scope(owner_user: str | None, fragment_path: str, process: dict[str, Any] | None) -> str:
+    if fragment_path.startswith("/etc/systemd/system"):
+        return "user"
+    if owner_user and is_human_user(owner_user):
+        return "user"
+    if process and is_human_user(process.get("user") or ""):
+        return "user"
+    return "system"
+
+
+def is_human_user(username: str) -> bool:
+    username = normalize_user_name(username) or ""
+    if not username:
+        return False
+    try:
+        user = pwd.getpwnam(username)
+    except KeyError:
+        return False
+    return user.pw_uid >= 1000 or user.pw_dir.startswith("/home/")
+
+
+def service_should_be_running(scope: str, unit_file_state: str, service_type: str) -> bool:
+    if service_type in {"oneshot", "idle"}:
+        return False
+    return unit_file_state in {"enabled", "enabled-runtime", "alias", "linked", "linked-runtime"} or scope == "user"
+
+
+def service_needs_attention(active_state: str, load_state: str, expected_up: bool, result: str) -> bool:
+    if load_state == "not-found":
+        return True
+    if active_state == "failed":
+        return True
+    if expected_up and active_state != "active":
+        return True
+    return result not in {"", "success"} and active_state != "inactive"
+
+
+def normalize_service_status(active_state: str, sub_state: str, load_state: str, needs_attention: bool) -> str:
+    if load_state == "not-found":
+        return "missing"
+    if active_state == "failed":
+        return "failed"
+    if active_state == "active" and sub_state in {"running", "listening"}:
+        return "running"
+    if active_state == "active" and sub_state == "exited":
+        return "completed"
+    if active_state == "activating":
+        return "starting"
+    if active_state == "reloading":
+        return "reloading"
+    if active_state == "inactive" and needs_attention:
+        return "down"
+    return active_state or sub_state or "unknown"
+
+
+def service_status_rank(value: str) -> int:
+    order = {"failed": 0, "down": 1, "missing": 2, "starting": 3, "reloading": 4, "running": 5, "completed": 6, "inactive": 7}
+    return order.get(value, 99)
+
+
+def build_service_description(base_description: str, process: dict[str, Any] | None, status: str, needs_attention: bool) -> str:
+    fragments = [base_description.strip() or "Systemd service."]
+    if process:
+        runtime = process.get("runtime") or "native"
+        fragments.append(f"Runtime: {runtime}.")
+        ports = process.get("ports") or []
+        public_ports = [port["label"] for port in ports if port["exposure"] == "public"][:4]
+        local_ports = [port["label"] for port in ports if port["exposure"] != "public"][:4]
+        if public_ports:
+            fragments.append(f"Public listeners: {', '.join(public_ports)}.")
+        elif local_ports:
+            fragments.append(f"Local listeners: {', '.join(local_ports)}.")
+    if needs_attention:
+        fragments.append(f"Current status needs attention: {status}.")
+    return " ".join(fragment for fragment in fragments if fragment)
+
+
+def summarize_services(services: list[dict[str, Any]]) -> dict[str, Any]:
+    user_services = [service for service in services if service["scope"] == "user"]
+    system_services = [service for service in services if service["scope"] == "system"]
+    user_attention = [service for service in user_services if service["needs_attention"]]
+    system_attention = [service for service in system_services if service["needs_attention"]]
+    running_user = [service for service in user_services if service["status"] == "running"]
+    running_system = [service for service in system_services if service["status"] == "running"]
+
+    return {
+        "total_count": len(services),
+        "user_count": len(user_services),
+        "system_count": len(system_services),
+        "user_running_count": len(running_user),
+        "system_running_count": len(running_system),
+        "user_attention_count": len(user_attention),
+        "system_attention_count": len(system_attention),
+        "user_attention_units": [service["unit"] for service in user_attention[:8]],
+        "system_attention_units": [service["unit"] for service in system_attention[:8]],
+    }
+
+
+def normalize_user_name(username: str | None) -> str | None:
+    value = (username or "").strip()
+    if not value:
+        return None
+    if value.isdigit():
+        try:
+            return pwd.getpwuid(int(value)).pw_name
+        except KeyError:
+            return value
+    return value
 
 
 def safe_shlex_split(value: str) -> list[str]:
@@ -490,7 +707,11 @@ def describe_process(process_info: dict[str, Any]) -> str:
     return " ".join(sentences)
 
 
-def summarize_inventory(processes: list[dict[str, Any]], sockets: list[dict[str, Any]]) -> dict[str, Any]:
+def summarize_inventory(
+    processes: list[dict[str, Any]],
+    sockets: list[dict[str, Any]],
+    services_summary: dict[str, Any],
+) -> dict[str, Any]:
     public_ports = [socket for socket in sockets if socket["exposure"] == "public"]
     private_ports = [socket for socket in sockets if socket["exposure"] == "private"]
     local_ports = [socket for socket in sockets if socket["exposure"] == "local"]
@@ -504,6 +725,13 @@ def summarize_inventory(processes: list[dict[str, Any]], sockets: list[dict[str,
         "private_port_count": len(private_ports),
         "local_port_count": len(local_ports),
         "runtime_count": len(runtime_counter),
+        "service_count": services_summary.get("total_count", 0),
+        "user_service_count": services_summary.get("user_count", 0),
+        "system_service_count": services_summary.get("system_count", 0),
+        "user_service_running_count": services_summary.get("user_running_count", 0),
+        "system_service_running_count": services_summary.get("system_running_count", 0),
+        "user_service_attention_count": services_summary.get("user_attention_count", 0),
+        "system_service_attention_count": services_summary.get("system_attention_count", 0),
         "top_runtimes": [
             {"runtime": runtime, "count": count}
             for runtime, count in runtime_counter.most_common(8)

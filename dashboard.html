@@ -375,7 +375,7 @@
 
       .stat-grid {
         display: grid;
-        grid-template-columns: repeat(5, minmax(0, 1fr));
+        grid-template-columns: repeat(6, minmax(0, 1fr));
         gap: 12px;
       }
 
@@ -494,6 +494,12 @@
         transform: translateY(-1px);
       }
 
+      .button.is-active {
+        border-color: rgba(69, 195, 209, 0.48);
+        background: rgba(69, 195, 209, 0.12);
+        color: #d8fbff;
+      }
+
       .button-primary {
         background: linear-gradient(135deg, var(--accent), var(--accent-2));
         color: #061118;
@@ -538,6 +544,12 @@
       .metric-duo {
         display: grid;
         grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 12px;
+      }
+
+      .service-summary-grid {
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
         gap: 12px;
       }
 
@@ -615,7 +627,8 @@
 
       .table-head,
       .process-row,
-      .port-row {
+      .port-row,
+      .service-row {
         display: grid;
         gap: 12px;
         align-items: start;
@@ -640,18 +653,26 @@
         grid-template-columns: 120px 150px 120px minmax(180px, 1fr) minmax(180px, 1fr) minmax(220px, 1.2fr);
       }
 
+      .table-head.service,
+      .service-row {
+        grid-template-columns: 112px minmax(240px, 1.35fr) 150px 120px 150px minmax(180px, 1fr) minmax(260px, 1.3fr);
+      }
+
       .process-row,
-      .port-row {
+      .port-row,
+      .service-row {
         border-top: 1px solid rgba(255, 255, 255, 0.04);
       }
 
       .process-row:hover,
-      .port-row:hover {
+      .port-row:hover,
+      .service-row:hover {
         background: rgba(255, 255, 255, 0.03);
       }
 
       .process-title,
-      .port-title {
+      .port-title,
+      .service-title {
         display: grid;
         gap: 6px;
       }
@@ -863,6 +884,11 @@
         .process-row {
           grid-template-columns: minmax(220px, 1.3fr) 100px 90px 82px 120px minmax(150px, 1fr) minmax(220px, 1.3fr);
         }
+
+        .table-head.service,
+        .service-row {
+          grid-template-columns: 108px minmax(220px, 1.3fr) 140px 110px 140px minmax(160px, 1fr) minmax(220px, 1.2fr);
+        }
       }
 
       @media (max-width: 1240px) {
@@ -902,14 +928,17 @@
 
       @media (max-width: 860px) {
         .stat-grid,
-        .setup-fields {
+        .setup-fields,
+        .service-summary-grid {
           grid-template-columns: 1fr;
         }
 
         .table-head.process,
         .process-row,
         .table-head.port,
-        .port-row {
+        .port-row,
+        .table-head.service,
+        .service-row {
           grid-template-columns: 1fr;
         }
 
@@ -949,7 +978,7 @@
           <a class="nav-link" href="#runtime">
             <div>
               <div class="nav-title">Runtime</div>
-              <div class="nav-meta">processes and exposure</div>
+              <div class="nav-meta">services, processes and exposure</div>
             </div>
             <span class="chip">02</span>
           </a>
@@ -991,9 +1020,9 @@
             <div class="kicker">Global surveillance</div>
             <h2 class="header-title">Runtime intelligence for the entire VPS.</h2>
             <p class="header-copy">
-              DefendOS montre maintenant les processus actifs, les ports ouverts, le type d'application,
-              les fichiers de config probables et une description automatique pour comprendre rapidement
-              ce qui tourne vraiment sur la machine.
+              DefendOS montre maintenant les services systemd, les processus actifs, les ports ouverts,
+              le type d'application, les fichiers de config probables et une description automatique
+              pour comprendre rapidement ce qui tourne vraiment sur la machine.
             </p>
           </div>
           <div class="header-meta">
@@ -1088,6 +1117,42 @@
           </section>
 
           <section id="runtime" class="grid">
+            <article class="panel span-12">
+              <div class="table-panel">
+                <div class="table-toolbar">
+                  <div>
+                    <div class="kicker">Service watch</div>
+                    <div class="panel-title">User and system services</div>
+                    <div id="servicePanelCopy" class="panel-copy">Suivi des unites systemd, avec separation claire entre services user et services systeme.</div>
+                  </div>
+                  <div style="display:grid; gap:12px; min-width:min(420px, 100%);">
+                    <div class="button-row">
+                      <button id="serviceScopeUser" class="button is-active" type="button" onclick="setServiceScope('user')">User services</button>
+                      <button id="serviceScopeSystem" class="button" type="button" onclick="setServiceScope('system')">System services</button>
+                      <button id="serviceScopeAll" class="button" type="button" onclick="setServiceScope('all')">All services</button>
+                    </div>
+                    <div class="input-wrap">
+                      <label class="input-label" for="serviceSearch">Search services</label>
+                      <input id="serviceSearch" class="input" type="text" placeholder="personal-website, ubuntu, failed, nginx, 443, /etc/systemd/system..." />
+                    </div>
+                  </div>
+                </div>
+                <div id="serviceSummaryCards" class="service-summary-grid"></div>
+                <div class="table-shell">
+                  <div class="table-head service">
+                    <div class="table-eyebrow">Status</div>
+                    <div class="table-eyebrow">Service</div>
+                    <div class="table-eyebrow">Owner / scope</div>
+                    <div class="table-eyebrow">Runtime</div>
+                    <div class="table-eyebrow">Ports</div>
+                    <div class="table-eyebrow">Config guess</div>
+                    <div class="table-eyebrow">Automatic description</div>
+                  </div>
+                  <div id="serviceRows"></div>
+                </div>
+              </div>
+            </article>
+
             <article class="panel span-12">
               <div class="table-panel">
                 <div class="table-toolbar">
@@ -1249,6 +1314,7 @@
       const appState = {
         status: null,
         runtime: null,
+        serviceScope: "user",
         selectedRunId: null,
         setupDirty: false,
       };
@@ -1396,6 +1462,8 @@
           `${(status?.config || {}).email_provider || "n/a"} mail`,
           `${(status?.config || {}).inbox_provider || "n/a"} inbox`,
           `${runtimeSummary.process_count || 0} processes`,
+          `${runtimeSummary.user_service_count || 0} user services`,
+          `${runtimeSummary.user_service_attention_count || 0} user alerts`,
           `${runtimeSummary.public_port_count || 0} public ports`,
           latestRun.run_id || "no run",
           missing ? `${missing} setup gaps` : "setup ready",
@@ -1413,6 +1481,16 @@
             label: "Latest severity",
             value: (result.severity || "none").toUpperCase(),
             copy: result.summary || "No completed run yet.",
+          },
+          {
+            label: "User services",
+            value: String(runtimeSummary.user_service_count || 0),
+            copy: `${runtimeSummary.user_service_running_count || 0} running maintenant`,
+          },
+          {
+            label: "User alerts",
+            value: String(runtimeSummary.user_service_attention_count || 0),
+            copy: (runtime?.services_summary?.user_attention_units || []).slice(0, 2).join(", ") || "Aucune unite user en alerte",
           },
           {
             label: "Processes",
@@ -1488,6 +1566,15 @@
               ? `${runtimeSummary.process_count} processus et ${runtimeSummary.listening_port_count || 0} listeners inventories`
               : "Inventaire runtime indisponible.",
           },
+          {
+            title: "User services",
+            state: !runtimeSummary.user_service_count
+              ? "warn"
+              : (runtimeSummary.user_service_attention_count ? "blocked" : "ready"),
+            copy: runtimeSummary.user_service_count
+              ? `${runtimeSummary.user_service_running_count || 0}/${runtimeSummary.user_service_count || 0} running, ${runtimeSummary.user_service_attention_count || 0} a verifier`
+              : "Aucun service user-scoped detecte.",
+          },
         ];
         document.getElementById("readinessGrid").innerHTML = cards.map((card) => `
           <div class="readiness-card">
@@ -1510,7 +1597,7 @@
           ? `Polling degrade: ${inboxState.reason || "unknown"}`
           : `Inbox ${config.inbox_provider || "n/a"} active.`;
         document.getElementById("sidebarRuntime").textContent = runtimeSummary.process_count
-          ? `${runtimeSummary.process_count} process / ${runtimeSummary.public_port_count || 0} public listeners / ${runtimeSummary.runtime_count || 0} runtimes.`
+          ? `${runtimeSummary.process_count} process / ${runtimeSummary.user_service_count || 0} user services / ${runtimeSummary.user_service_attention_count || 0} user alerts.`
           : "Runtime snapshot indisponible.";
 
         const controlMetrics = [
@@ -1626,6 +1713,157 @@
           (apps || []).join(" "),
         ].join(" ").toLowerCase();
         return haystack.includes(query);
+      }
+
+      function serviceToneClass(service) {
+        const status = String(service?.status || "").toLowerCase();
+        if (service?.needs_attention || ["failed", "down", "missing"].includes(status)) {
+          return "danger";
+        }
+        if (["running", "completed"].includes(status)) {
+          return "ready";
+        }
+        return "warn";
+      }
+
+      function humanServiceScope(scope) {
+        if (scope === "user") return "user managed";
+        if (scope === "system") return "system managed";
+        return "all services";
+      }
+
+      function setServiceScope(scope) {
+        appState.serviceScope = ["user", "system", "all"].includes(scope) ? scope : "user";
+        renderServices(appState.runtime);
+      }
+
+      function serviceMatchesFilter(service, query) {
+        if (!query) return true;
+        const haystack = [
+          service.unit,
+          service.name,
+          service.scope,
+          service.status,
+          service.owner_user,
+          service.process_user,
+          service.runtime,
+          service.service_type,
+          service.application_name,
+          service.description,
+          service.detail_summary,
+          service.fragment_path,
+          service.primary_config,
+          String(service.main_pid || ""),
+          String(service.expected_up || ""),
+          String(service.needs_attention || ""),
+          (service.config_candidates || []).join(" "),
+          (service.ports || []).map((port) => `${port.port} ${port.protocol} ${port.exposure}`).join(" "),
+        ].join(" ").toLowerCase();
+        return haystack.includes(query);
+      }
+
+      function renderServiceSummary(runtime, visibleCount, scope, query) {
+        const summary = runtime?.services_summary || {};
+        const scopedAttentionUnits = scope === "user"
+          ? (summary.user_attention_units || [])
+          : (scope === "system" ? (summary.system_attention_units || []) : uniqueStrings([...(summary.user_attention_units || []), ...(summary.system_attention_units || [])]));
+        const scopeTotal = scope === "user"
+          ? (summary.user_count || 0)
+          : (scope === "system" ? (summary.system_count || 0) : (summary.total_count || 0));
+        const root = document.getElementById("serviceSummaryCards");
+        const cards = [
+          {
+            label: "Current scope",
+            value: String(visibleCount),
+            copy: query
+              ? `${visibleCount} ${humanServiceScope(scope)} match the current filter`
+              : (scopedAttentionUnits.length
+                ? `${scopeTotal} ${humanServiceScope(scope)} loaded • attention: ${truncate(scopedAttentionUnits.join(", "), 82)}`
+                : `${scopeTotal} ${humanServiceScope(scope)} loaded`),
+          },
+          {
+            label: "User services",
+            value: String(summary.user_count || 0),
+            copy: (summary.user_attention_units || []).length
+              ? `${summary.user_running_count || 0} running • attention: ${truncate((summary.user_attention_units || []).join(", "), 82)}`
+              : `${summary.user_running_count || 0} running • no user alert`,
+          },
+          {
+            label: "System services",
+            value: String(summary.system_count || 0),
+            copy: (summary.system_attention_units || []).length
+              ? `${summary.system_running_count || 0} running • attention: ${truncate((summary.system_attention_units || []).join(", "), 82)}`
+              : `${summary.system_running_count || 0} running • no system alert`,
+          },
+        ];
+        root.innerHTML = cards.map((card) => `
+          <div class="config-card">
+            <div class="meta-label">${escapeHtml(card.label)}</div>
+            <div class="stat-value" style="font-size:24px; margin-top:10px;">${escapeHtml(card.value)}</div>
+            <div class="config-copy">${escapeHtml(card.copy)}</div>
+          </div>
+        `).join("");
+      }
+
+      function renderServices(runtime) {
+        const query = (document.getElementById("serviceSearch")?.value || "").trim().toLowerCase();
+        const scope = appState.serviceScope || "user";
+        const allServices = runtime?.services || [];
+        const scopedServices = allServices.filter((service) => scope === "all" || service.scope === scope);
+        const services = scopedServices.filter((service) => serviceMatchesFilter(service, query));
+        const attentionCount = services.filter((service) => service.needs_attention).length;
+
+        [
+          ["serviceScopeUser", "user"],
+          ["serviceScopeSystem", "system"],
+          ["serviceScopeAll", "all"],
+        ].forEach(([id, value]) => {
+          const button = document.getElementById(id);
+          if (!button) return;
+          button.classList.toggle("is-active", value === scope);
+        });
+
+        renderServiceSummary(runtime, services.length, scope, query);
+        document.getElementById("servicePanelCopy").textContent = query
+          ? `${services.length} ${humanServiceScope(scope)} match the filter. ${attentionCount} need attention.`
+          : `${scopedServices.length} ${humanServiceScope(scope)} loaded. ${attentionCount} currently need attention.`;
+
+        const root = document.getElementById("serviceRows");
+        if (!services.length) {
+          root.innerHTML = '<div class="empty">Aucun service ne correspond au scope ou au filtre courant.</div>';
+          return;
+        }
+
+        root.innerHTML = services.map((service) => `
+          <div class="service-row">
+            <div>
+              <span class="status-pill ${serviceToneClass(service)}">${escapeHtml(service.status || "unknown")}</span>
+              <div class="process-meta" style="margin-top:8px;">${escapeHtml(service.needs_attention ? "needs attention" : (service.expected_up ? "expected up" : "not expected up"))}</div>
+            </div>
+            <div class="service-title">
+              <div class="process-name">${escapeHtml(service.application_name || service.name || service.unit || "service")}</div>
+              <div class="process-meta mono">${escapeHtml(service.unit || "n/a")}</div>
+              <div class="chip-stack">
+                ${service.fragment_path ? `<span class="badge mono">${escapeHtml(service.fragment_path)}</span>` : ""}
+                ${service.main_pid ? `<span class="badge mono">PID ${escapeHtml(String(service.main_pid))}</span>` : ""}
+              </div>
+            </div>
+            <div>
+              <div class="process-name mono">${escapeHtml(service.owner_user || service.process_user || "system")}</div>
+              <div class="chip-stack">
+                <span class="badge mono">${escapeHtml(service.scope || "system")}</span>
+                ${service.unit_file_state ? `<span class="badge mono">${escapeHtml(service.unit_file_state)}</span>` : ""}
+              </div>
+            </div>
+            <div>
+              <div class="process-name">${escapeHtml(service.runtime || service.service_type || "native")}</div>
+              <div class="process-meta">${escapeHtml(service.application_name ? `${service.application_name}${service.process_user ? ` • ${service.process_user}` : ""}` : (service.service_type || "systemd service"))}</div>
+            </div>
+            <div class="chip-stack">${renderPortChips(service.ports || [])}</div>
+            <div class="chip-stack">${renderConfigChips(service.config_candidates || [])}</div>
+            <div class="process-meta">${escapeHtml(truncate(service.detail_summary || service.description || "No description", 320))}</div>
+          </div>
+        `).join("");
       }
 
       function renderProcessExplorer(runtime) {
@@ -1862,7 +2100,7 @@
           ["Trusted SSH IPs", (config.trusted_login_ips || []).join(", ") || "none"],
           ["Dashboard bind", config.dashboard_bind || "127.0.0.1:8787"],
           ["Codex", config.codex_enabled ? `${config.codex_bin || "codex"} • ${config.codex_model || "default"}` : "disabled"],
-          ["Inventory", `${runtimeSummary.process_count || 0} proc • ${runtimeSummary.listening_port_count || 0} listeners • ${inboxState.reason || "polling nominal"}`],
+          ["Inventory", `${runtimeSummary.process_count || 0} proc • ${runtimeSummary.user_service_count || 0} user svc • ${runtimeSummary.listening_port_count || 0} listeners • ${inboxState.reason || "polling nominal"}`],
         ];
         document.getElementById("configPanel").innerHTML = entries.map(([label, value]) => `
           <div class="config-card">
@@ -2144,6 +2382,7 @@
         renderRuntimeFamilies(appState.runtime);
         renderHotProcesses(appState.runtime);
         renderPublicExposure(appState.runtime);
+        renderServices(appState.runtime);
         renderProcessExplorer(appState.runtime);
         renderPortMap(appState.runtime);
         renderRuns(appState.status);
@@ -2179,6 +2418,9 @@
         }
       }
 
+      document.getElementById("serviceSearch").addEventListener("input", function () {
+        renderServices(appState.runtime);
+      });
       document.getElementById("processSearch").addEventListener("input", function () {
         renderProcessExplorer(appState.runtime);
       });
