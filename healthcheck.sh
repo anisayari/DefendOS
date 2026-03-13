@@ -32,6 +32,25 @@ have() {
   command -v "$1" >/dev/null 2>&1
 }
 
+perm_allows_group_or_world_write() {
+  local mode="${1:-}"
+  local group_digit other_digit
+
+  [ -n "$mode" ] || return 1
+  group_digit="${mode: -2:1}"
+  other_digit="${mode: -1}"
+
+  case "$group_digit" in
+    2|3|6|7) return 0 ;;
+  esac
+
+  case "$other_digit" in
+    2|3|6|7) return 0 ;;
+  esac
+
+  return 1
+}
+
 print_cmd_output() {
   local label="$1"
   shift
@@ -47,7 +66,7 @@ print_cmd_output() {
 listening_ports() {
   ss -lntuH 2>/dev/null | while read -r proto state recvq sendq local_addr peer_addr; do
     case "$proto" in
-      tcp|tcp6) ;;
+      tcp|tcp6|udp|udp6) ;;
       *) continue ;;
     esac
     port="${local_addr##*:}"
@@ -142,8 +161,121 @@ check_reboot_required() {
   fi
 }
 
+check_auto_updates() {
+  local enabled_status active_status apt_periodic_enabled
+
+  if have dpkg-query; then
+    if dpkg-query -W -f='${Status}' unattended-upgrades 2>/dev/null | grep -q 'install ok installed'; then
+      enabled_status="$(systemctl is-enabled unattended-upgrades.service 2>/dev/null || true)"
+      active_status="$(systemctl is-active unattended-upgrades.service 2>/dev/null || true)"
+      apt_periodic_enabled="unknown"
+      if grep -RhsEq 'APT::Periodic::Unattended-Upgrade[[:space:]]+"1";' /etc/apt/apt.conf.d 2>/dev/null; then
+        apt_periodic_enabled="enabled"
+      elif grep -RhsEq 'APT::Periodic::Unattended-Upgrade[[:space:]]+"0";' /etc/apt/apt.conf.d 2>/dev/null; then
+        apt_periodic_enabled="disabled"
+      fi
+      printf 'unattended-upgrades enabled: %s\n' "${enabled_status:-unknown}"
+      printf 'unattended-upgrades active: %s\n' "${active_status:-unknown}"
+      printf 'APT periodic unattended-upgrade: %s\n' "${apt_periodic_enabled:-unknown}"
+      if [ "$apt_periodic_enabled" = "enabled" ] || [ "$enabled_status" = "enabled" ]; then
+        ok "Automatic security upgrades are enabled"
+      else
+        warn "Automatic security upgrades are not enabled"
+      fi
+      return
+    fi
+
+    warn "Automatic security upgrades are not installed"
+    return
+  fi
+
+  if have rpm && rpm -q dnf-automatic >/dev/null 2>&1; then
+    enabled_status="$(systemctl is-enabled dnf-automatic.timer 2>/dev/null || true)"
+    active_status="$(systemctl is-active dnf-automatic.timer 2>/dev/null || true)"
+    printf 'dnf-automatic.timer enabled: %s\n' "${enabled_status:-unknown}"
+    printf 'dnf-automatic.timer active: %s\n' "${active_status:-unknown}"
+    if [ "$enabled_status" = "enabled" ]; then
+      ok "Automatic security upgrades are enabled"
+    else
+      warn "Automatic security upgrades are not enabled"
+    fi
+    return
+  fi
+
+  warn "Automatic security upgrade status could not be determined on this host"
+}
+
+check_tmp_permissions() {
+  local tmp_path mode_text world_writable sticky_present
+
+  for tmp_path in /tmp /var/tmp; do
+    if [ ! -d "$tmp_path" ]; then
+      warn "${tmp_path} does not exist"
+      continue
+    fi
+
+    mode_text="$(stat -c '%A (%a)' "$tmp_path" 2>/dev/null || true)"
+    printf '%s permissions: %s\n' "$tmp_path" "${mode_text:-unavailable}"
+
+    world_writable="$(find "$tmp_path" -maxdepth 0 -perm -0002 -print -quit 2>/dev/null || true)"
+    sticky_present="$(find "$tmp_path" -maxdepth 0 -perm -1000 -print -quit 2>/dev/null || true)"
+
+    if [ -n "$world_writable" ] && [ -z "$sticky_present" ]; then
+      alert "${tmp_path} is world-writable without the sticky bit"
+    elif [ -n "$world_writable" ]; then
+      ok "${tmp_path} has the sticky bit set"
+    else
+      warn "${tmp_path} is not world-writable"
+    fi
+  done
+}
+
+check_mac_framework() {
+  local found_framework=0 apparmor_mode selinux_mode
+
+  if [ -r /sys/module/apparmor/parameters/enabled ]; then
+    found_framework=1
+    apparmor_mode="$(cat /sys/module/apparmor/parameters/enabled 2>/dev/null || true)"
+    printf 'AppArmor kernel flag: %s\n' "${apparmor_mode:-unknown}"
+    if [ "$apparmor_mode" = "Y" ]; then
+      ok "AppArmor is enabled"
+    else
+      warn "AppArmor is not enabled"
+    fi
+  elif have aa-status; then
+    found_framework=1
+    if aa-status --enabled >/dev/null 2>&1; then
+      ok "AppArmor is enabled"
+    else
+      warn "AppArmor is installed but not enabled"
+    fi
+    aa-status 2>/dev/null | head -n 12 || true
+  fi
+
+  if have getenforce; then
+    found_framework=1
+    selinux_mode="$(getenforce 2>/dev/null || true)"
+    printf 'SELinux mode: %s\n' "${selinux_mode:-unknown}"
+    case "$selinux_mode" in
+      Enforcing)
+        ok "SELinux is enforcing"
+        ;;
+      Permissive)
+        warn "SELinux is permissive"
+        ;;
+      Disabled)
+        warn "SELinux is disabled"
+        ;;
+    esac
+  fi
+
+  if [ "$found_framework" -eq 0 ]; then
+    warn "No mandatory access control framework status was detected"
+  fi
+}
+
 check_ssh_config() {
-  local permit_root password_auth pubkey_auth kbd_auth
+  local permit_root password_auth pubkey_auth kbd_auth permit_empty max_auth_tries
 
   if ! have sshd; then
     warn "sshd binary not found; skipping SSH config checks"
@@ -154,6 +286,8 @@ check_ssh_config() {
   password_auth="$(sshd -T 2>/dev/null | awk '/^passwordauthentication / {print $2}')"
   pubkey_auth="$(sshd -T 2>/dev/null | awk '/^pubkeyauthentication / {print $2}')"
   kbd_auth="$(sshd -T 2>/dev/null | awk '/^kbdinteractiveauthentication / {print $2}')"
+  permit_empty="$(sshd -T 2>/dev/null | awk '/^permitemptypasswords / {print $2}')"
+  max_auth_tries="$(sshd -T 2>/dev/null | awk '/^maxauthtries / {print $2}')"
 
   if [ "$permit_root" = "yes" ]; then
     alert "SSH root login is enabled"
@@ -178,10 +312,58 @@ check_ssh_config() {
   if [ "$kbd_auth" = "yes" ]; then
     warn "SSH keyboard-interactive authentication is enabled"
   fi
+
+  if [ "$permit_empty" = "yes" ]; then
+    alert "SSH empty passwords are enabled"
+  fi
+
+  if [ -n "$max_auth_tries" ] && [ "$max_auth_tries" -gt 4 ] 2>/dev/null; then
+    warn "SSH MaxAuthTries is set higher than 4 (${max_auth_tries})"
+  fi
+}
+
+check_root_ssh_access() {
+  local root_ssh auth_keys mode key_count
+
+  root_ssh="/root/.ssh"
+  auth_keys="${root_ssh}/authorized_keys"
+
+  if [ ! -d "$root_ssh" ]; then
+    warn "Root .ssh directory does not exist"
+    return
+  fi
+
+  mode="$(stat -c '%a' "$root_ssh" 2>/dev/null || true)"
+  printf 'Root .ssh mode: %s\n' "${mode:-unavailable}"
+  if perm_allows_group_or_world_write "$mode"; then
+    alert "Root SSH directory permissions are too open"
+  else
+    ok "Root SSH directory permissions look restricted"
+  fi
+
+  if [ ! -f "$auth_keys" ]; then
+    warn "Root authorized_keys file does not exist"
+    return
+  fi
+
+  mode="$(stat -c '%a' "$auth_keys" 2>/dev/null || true)"
+  key_count="$(grep -Ec '^[[:space:]]*ssh-|^[[:space:]]*ecdsa-|^[[:space:]]*sk-' "$auth_keys" 2>/dev/null || true)"
+  printf 'Root authorized_keys mode: %s\n' "${mode:-unavailable}"
+  printf 'Root authorized_keys entries: %s\n' "${key_count:-0}"
+
+  if perm_allows_group_or_world_write "$mode"; then
+    alert "Root authorized_keys permissions are too open"
+  else
+    ok "Root authorized_keys permissions look restricted"
+  fi
+
+  if find "$auth_keys" -mtime -7 -print -quit 2>/dev/null | grep -q .; then
+    warn "Root authorized_keys was modified in the last 7 days"
+  fi
 }
 
 check_firewall() {
-  local status_text
+  local status_text verbose_text
 
   if ! have ufw; then
     warn "ufw is not installed"
@@ -197,6 +379,14 @@ check_firewall() {
     warn "Unable to determine ufw status cleanly"
   else
     warn "ufw returned no status output"
+  fi
+
+  verbose_text="$(ufw status verbose 2>&1 || true)"
+  if printf '%s\n' "$verbose_text" | grep -q '^Default: '; then
+    printf '%s\n' "$verbose_text"
+    if ! printf '%s\n' "$verbose_text" | grep -q 'Default: deny (incoming)'; then
+      alert "UFW default incoming policy is not deny"
+    fi
   fi
 
   printf '%s\n' "$status_text"
@@ -226,6 +416,8 @@ check_fail2ban() {
     if [ -n "$currently_banned" ] && [ "$currently_banned" -gt 0 ] 2>/dev/null; then
       warn "fail2ban currently bans ${currently_banned} IP(s) on sshd"
     fi
+  else
+    warn "fail2ban sshd jail is not configured"
   fi
 }
 
@@ -339,12 +531,94 @@ check_privileged_accounts() {
   fi
 }
 
+check_sudo_policy() {
+  local matches
+
+  matches="$(grep -RnsE 'NOPASSWD:|!authenticate' /etc/sudoers /etc/sudoers.d 2>/dev/null || true)"
+  if [ -n "$matches" ]; then
+    warn "Passwordless sudo rules were found"
+    printf '%s\n' "$matches" | head -n 20
+  else
+    ok "No passwordless sudo rule was found in sudoers"
+  fi
+}
+
 check_cron() {
   printf 'Root crontab:\n'
   crontab -l 2>/dev/null || printf 'none\n'
 
   printf '\nSystem cron files:\n'
   find /etc/cron* -maxdepth 2 -type f 2>/dev/null | sort
+}
+
+check_shell_persistence() {
+  local path changed_paths=""
+
+  for path in /etc/profile /etc/bash.bashrc /etc/profile.d /etc/zsh/zshrc /etc/zsh/zprofile /etc/rc.local /root/.bashrc /root/.bash_profile /root/.profile /root/.zshrc; do
+    if [ -d "$path" ]; then
+      changed_paths="$(
+        printf '%s\n%s' "$changed_paths" "$(find "$path" -maxdepth 1 -type f -mtime -7 2>/dev/null | sort)"
+      )"
+    elif [ -f "$path" ]; then
+      changed_paths="$(
+        printf '%s\n%s' "$changed_paths" "$(find "$path" -maxdepth 0 -type f -mtime -7 2>/dev/null | sort)"
+      )"
+    fi
+  done
+
+  changed_paths="$(printf '%s\n' "$changed_paths" | sed '/^$/d' | sort -u | head -n 40)"
+  if [ -n "$changed_paths" ]; then
+    warn "Shell startup files changed in the last 7 days"
+    printf '%s\n' "$changed_paths"
+  else
+    ok "No recent shell startup file change detected"
+  fi
+}
+
+check_persistence_changes() {
+  local changed_paths
+
+  changed_paths="$(
+    find /etc/systemd/system /etc/cron.d /etc/cron.daily /etc/cron.hourly /etc/cron.monthly /etc/cron.weekly /var/spool/cron /root/.ssh \
+      -xdev -type f -mtime -7 2>/dev/null | sort | head -n 40
+  )"
+
+  if [ -n "$changed_paths" ]; then
+    warn "Sensitive persistence files changed in the last 7 days"
+    printf '%s\n' "$changed_paths"
+  else
+    ok "No recent persistence file change detected in the watched paths"
+  fi
+}
+
+check_sensitive_permissions() {
+  local world_writable_files
+
+  world_writable_files="$(
+    find /etc /root /usr/local/bin /usr/local/sbin -xdev -type f -perm -0002 2>/dev/null | sort | head -n 40
+  )"
+
+  if [ -n "$world_writable_files" ]; then
+    alert "Sensitive paths contain world-writable files"
+    printf '%s\n' "$world_writable_files"
+  else
+    ok "No world-writable file found in sensitive paths"
+  fi
+}
+
+check_suid_sgid() {
+  local flagged_files
+
+  flagged_files="$(
+    find /tmp /var/tmp /home /usr/local/bin /usr/local/sbin -xdev -type f \( -perm -4000 -o -perm -2000 \) 2>/dev/null | sort | head -n 40
+  )"
+
+  if [ -n "$flagged_files" ]; then
+    warn "SUID or SGID files were found in local or writable paths"
+    printf '%s\n' "$flagged_files"
+  else
+    ok "No SUID or SGID file found in local or writable paths"
+  fi
 }
 
 check_processes() {
@@ -373,10 +647,14 @@ main() {
   check_load
   check_memory
   check_disk_usage
+  check_auto_updates
   check_reboot_required
+  check_tmp_permissions
+  check_mac_framework
 
   section "SSH and Auth"
   check_ssh_config
+  check_root_ssh_access
   check_recent_auth_activity
   check_current_sessions
 
@@ -387,7 +665,12 @@ main() {
 
   section "Accounts and Persistence"
   check_privileged_accounts
+  check_sudo_policy
   check_cron
+  check_shell_persistence
+  check_persistence_changes
+  check_sensitive_permissions
+  check_suid_sgid
 
   section "Processes and Recent Changes"
   check_processes

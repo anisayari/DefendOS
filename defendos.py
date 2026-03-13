@@ -1528,6 +1528,17 @@ def parse_ips_from_lines(lines: list[str]) -> list[str]:
     return sorted(set(ips))
 
 
+def unique_preserve_order(items: list[str]) -> list[str]:
+    seen: set[str] = set()
+    unique: list[str] = []
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        unique.append(item)
+    return unique
+
+
 def is_trusted_ip(ip_text: str, trusted_entries: list[str]) -> bool:
     if not trusted_entries:
         return False
@@ -1554,8 +1565,18 @@ def heuristic_analysis(report: str, config: Config) -> dict[str, Any]:
     severity = "info"
     findings: list[str] = []
     actions: list[str] = []
-    warn_lines = [line for line in report.splitlines() if line.startswith("[WARN]")]
-    alert_lines = [line for line in report.splitlines() if line.startswith("[ALERT]")]
+    report_lines = report.splitlines()
+    warn_lines = [line for line in report_lines if line.startswith("[WARN]")]
+    alert_lines = [line for line in report_lines if line.startswith("[ALERT]")]
+
+    def note(*, finding: str | None = None, action: str | None = None, level: str | None = None) -> None:
+        nonlocal severity
+        if finding:
+            findings.append(finding)
+        if action:
+            actions.append(action)
+        if level:
+            severity = max_severity(severity, level)
 
     if warn_lines:
         severity = max_severity(severity, "medium")
@@ -1569,56 +1590,237 @@ def heuristic_analysis(report: str, config: Config) -> dict[str, Any]:
         severity = max_severity(severity, "high")
 
     if "SSH password authentication is enabled" in report:
-        findings.append("SSH password authentication is enabled.")
-        actions.append("Disable SSH password authentication and move to key-only access.")
-        severity = max_severity(severity, "high")
+        note(
+            finding="SSH password authentication is enabled.",
+            action="Disable SSH password authentication and move to key-only access.",
+            level="high",
+        )
+
+    if "SSH keyboard-interactive authentication is enabled" in report:
+        note(
+            finding="SSH keyboard-interactive authentication is enabled.",
+            action="Disable SSH keyboard-interactive authentication unless you explicitly rely on PAM or MFA prompts.",
+            level="medium",
+        )
+
+    if "SSH empty passwords are enabled" in report:
+        note(
+            finding="SSH empty passwords are enabled.",
+            action="Set PermitEmptyPasswords to no and verify PAM does not allow blank-password logins.",
+            level="critical",
+        )
+
+    max_auth_tries_match = re.search(r"SSH MaxAuthTries is set higher than 4 \((\d+)\)", report)
+    if max_auth_tries_match:
+        note(
+            finding=f"SSH MaxAuthTries is set to {max_auth_tries_match.group(1)}.",
+            action="Reduce MaxAuthTries to 3 or 4 to shrink brute-force exposure.",
+            level="medium",
+        )
 
     unexpected_ports = re.findall(r"Unexpected public port listening: (\d+)", report)
     if unexpected_ports:
-        findings.append(
-            "Unexpected public ports are listening: " + ", ".join(sorted(set(unexpected_ports))) + "."
+        note(
+            finding="Unexpected public ports are listening: " + ", ".join(sorted(set(unexpected_ports))) + ".",
+            action="Review the unexpected public ports and close what is not required.",
+            level="medium",
         )
-        actions.append("Review the unexpected public ports and close what is not required.")
-        severity = max_severity(severity, "medium")
 
     root_login_lines = [
         line
-        for line in report.splitlines()
+        for line in report_lines
         if "Accepted password for root" in line
     ]
     if root_login_lines:
         root_login_ips = parse_ips_from_lines(root_login_lines)
         untrusted_root_ips = [ip for ip in root_login_ips if not is_trusted_ip(ip, config.trusted_login_ips)]
-        findings.append(
-            "Recent root password logins were accepted from: " + ", ".join(root_login_ips) + "."
+        note(
+            finding="Recent root password logins were accepted from: " + ", ".join(root_login_ips) + ".",
+            action="Verify every root login source IP and rotate the root password if any IP is unknown.",
         )
-        actions.append("Verify every root login source IP and rotate the root password if any IP is unknown.")
         if untrusted_root_ips:
-            findings.append(
-                "Untrusted root password login IPs detected: " + ", ".join(untrusted_root_ips) + "."
+            note(
+                finding="Untrusted root password login IPs detected: " + ", ".join(untrusted_root_ips) + ".",
+                action="Treat the host as potentially compromised until those IPs are verified.",
+                level="critical",
             )
-            actions.append("Treat the host as potentially compromised until those IPs are verified.")
-            severity = max_severity(severity, "critical")
         else:
             severity = max_severity(severity, "high")
+    elif "Password-based SSH logins were accepted recently" in report:
+        accepted_password_lines = [line for line in report_lines if "Accepted password for " in line]
+        accepted_password_ips = parse_ips_from_lines(accepted_password_lines)
+        accepted_password_summary = "Recent password-based SSH logins were accepted"
+        if accepted_password_ips:
+            accepted_password_summary += " from: " + ", ".join(accepted_password_ips)
+        note(
+            finding=accepted_password_summary + ".",
+            action="Move SSH users to keys only and rotate any password that was used over SSH recently.",
+            level="high",
+        )
 
     if "Recent SSH brute-force activity detected" in report:
-        findings.append("Recent SSH brute-force activity was detected in auth logs.")
-        actions.append("Keep fail2ban enabled and review whether SSH should be restricted to trusted IPs.")
-        severity = max_severity(severity, "medium")
+        note(
+            finding="Recent SSH brute-force activity was detected in auth logs.",
+            action="Keep fail2ban enabled and review whether SSH should be restricted to trusted IPs.",
+            level="medium",
+        )
 
     if "ufw is not active" in report:
-        findings.append("UFW is not active.")
-        actions.append("Enable a deny-by-default firewall policy before exposing more services.")
-        severity = max_severity(severity, "critical")
+        note(
+            finding="UFW is not active.",
+            action="Enable a deny-by-default firewall policy before exposing more services.",
+            level="critical",
+        )
+
+    if "UFW default incoming policy is not deny" in report:
+        note(
+            finding="The firewall default incoming policy is not deny.",
+            action="Set the default incoming firewall policy to deny and allow only the ports you explicitly need.",
+            level="high",
+        )
+
+    if "ufw is not installed" in report:
+        note(
+            finding="UFW is not installed.",
+            action="Verify that another host firewall is enforcing a deny-by-default policy, or install and configure one.",
+            level="medium",
+        )
+
+    if "fail2ban-client is not installed" in report:
+        note(
+            finding="fail2ban is not installed.",
+            action="Install fail2ban or another SSH rate-limiting control if SSH is reachable from the internet.",
+            level="medium",
+        )
+
+    if "fail2ban sshd jail is not configured" in report:
+        note(
+            finding="The fail2ban sshd jail is not configured.",
+            action="Enable and tune the fail2ban sshd jail to ban repeated SSH abuse.",
+            level="medium",
+        )
 
     if "Multiple root sessions are currently open" in report:
-        findings.append("Multiple root sessions are open right now.")
-        actions.append("Verify every current root session and close what is not expected.")
-        severity = max_severity(severity, "high")
+        note(
+            finding="Multiple root sessions are open right now.",
+            action="Verify every current root session and close what is not expected.",
+            level="high",
+        )
+
+    if "Automatic security upgrades are not installed" in report:
+        note(
+            finding="Automatic security upgrades are not installed.",
+            action="Install unattended-upgrades or an equivalent automatic security patching mechanism.",
+            level="medium",
+        )
+
+    if "Automatic security upgrades are not enabled" in report:
+        note(
+            finding="Automatic security upgrades are not enabled.",
+            action="Enable automatic security updates or document an equivalent patching workflow.",
+            level="medium",
+        )
+
+    if "A reboot is required after package updates" in report:
+        note(
+            finding="A reboot is pending after package updates.",
+            action="Schedule a reboot after validating the maintenance window, especially after kernel or OpenSSH updates.",
+            level="low",
+        )
+
+    for tmp_path in ("/tmp", "/var/tmp"):
+        if f"{tmp_path} is world-writable without the sticky bit" in report:
+            note(
+                finding=f"{tmp_path} is world-writable without the sticky bit.",
+                action=f"Restore mode 1777 on {tmp_path} immediately to prevent cross-user file clobbering.",
+                level="critical",
+            )
+
+    if (
+        "AppArmor is not enabled" in report
+        or "AppArmor is installed but not enabled" in report
+        or "SELinux is permissive" in report
+        or "SELinux is disabled" in report
+        or "No mandatory access control framework status was detected" in report
+    ):
+        note(
+            finding="Mandatory access control is not fully enforcing on this host.",
+            action="Enable AppArmor or SELinux enforcement for exposed services where your distribution supports it.",
+            level="medium",
+        )
+
+    if "There is more than one UID 0 account" in report:
+        note(
+            finding="More than one account has UID 0.",
+            action="Review every UID 0 account and remove, lock, or rename any unexpected one.",
+            level="critical",
+        )
+
+    if "Passwordless sudo rules were found" in report:
+        note(
+            finding="Passwordless sudo rules were found.",
+            action="Review every NOPASSWD or !authenticate rule and remove anything not explicitly required.",
+            level="high",
+        )
+
+    if "Shell startup files changed in the last 7 days" in report:
+        note(
+            finding="Shell startup files changed recently.",
+            action="Review recent changes in global and root shell startup files for persistence or credential theft logic.",
+            level="medium",
+        )
+
+    if "Sensitive persistence files changed in the last 7 days" in report:
+        note(
+            finding="Sensitive persistence files changed in the last 7 days.",
+            action="Inspect recent changes under systemd, cron, and root SSH persistence paths before treating the host as healthy.",
+            level="high",
+        )
+
+    if "Root SSH directory permissions are too open" in report:
+        note(
+            finding="Root .ssh directory permissions are too open.",
+            action="Set /root/.ssh to 700 and confirm it is owned by root:root.",
+            level="high",
+        )
+
+    if "Root authorized_keys permissions are too open" in report:
+        note(
+            finding="Root authorized_keys permissions are too open.",
+            action="Set /root/.ssh/authorized_keys to 600 and confirm it is owned by root:root.",
+            level="high",
+        )
+
+    if "Root authorized_keys was modified in the last 7 days" in report:
+        note(
+            finding="Root authorized_keys changed in the last 7 days.",
+            action="Review every recent key added to root authorized_keys and remove unknown entries immediately.",
+            level="high",
+        )
+
+    if "Sensitive paths contain world-writable files" in report:
+        note(
+            finding="Sensitive paths contain world-writable files.",
+            action="Remove world-write permissions from files in /etc, /root, and /usr/local before trusting the host again.",
+            level="critical",
+        )
+
+    if "SUID or SGID files were found in local or writable paths" in report:
+        note(
+            finding="SUID or SGID files were found in local or writable paths.",
+            action="Review unexpected setuid/setgid binaries in writable or local paths and remove or replace anything not explicitly trusted.",
+            level="high",
+        )
+
+    findings = unique_preserve_order(findings)
+    actions = unique_preserve_order(actions)
 
     if not findings:
-        findings.append("No major issue was detected by the heuristic checks.")
+        if warn_lines or alert_lines:
+            findings.append("The healthcheck raised warnings that were not fully classified automatically.")
+            actions.append("Review the raw healthcheck output for the remaining warnings and alerts.")
+        else:
+            findings.append("No major issue was detected by the heuristic checks.")
 
     summary = findings[0]
     send_email = severity_rank(severity) >= severity_rank(config.alert_min_severity)
@@ -1662,6 +1864,8 @@ def build_codex_prompt(
         - SSH abuse, especially accepted root password logins
         - unexpected public ports
         - suspicious persistence via cron, systemd, shell profiles, SSH keys
+        - weak hardening such as permissive sudoers, missing auto-updates, or disabled MAC controls
+        - world-writable sensitive files or unusual SUID/SGID binaries
         - auth log anomalies
         - suspicious processes
         - any concrete sign of compromise
